@@ -25,15 +25,29 @@ export const AuthProvider = ({ children }) => {
   const initializeAuth = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      if (token) {
-        // Verify token is still valid by fetching user profile
-        const response = await authAPI.getProfile();
-        if (response.status === 'success') {
-          setUser(response.data);
+      const storedUser = localStorage.getItem('user');
+      
+      if (token && storedUser) {
+        try {
+          // First set user from localStorage for immediate auth
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
           setIsAuthenticated(true);
-        } else {
-          // Token is invalid, clear storage
-          clearAuthData();
+          
+          // Then verify token is still valid by fetching user profile
+          const response = await authAPI.getProfile();
+          if (response.status === 'success') {
+            // Update with fresh data from server
+            setUser(response.data);
+            localStorage.setItem('user', JSON.stringify(response.data));
+          }
+        } catch (apiError) {
+          // If API call fails but we have stored user data, keep user logged in
+          console.warn('API verification failed, using stored credentials:', apiError);
+          // Only clear auth if the token is actually invalid (401 error)
+          if (apiError.response && apiError.response.status === 401) {
+            clearAuthData();
+          }
         }
       }
     } catch (error) {

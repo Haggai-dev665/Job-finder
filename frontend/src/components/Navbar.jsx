@@ -66,6 +66,7 @@ const Navbar = () => {
   ];
 
   const userNavigation = [
+    { name: 'Dashboard', href: '/dashboard', icon: Briefcase },
     { name: 'Profile', href: '/profile', icon: User },
     { name: 'Saved Jobs', href: '/saved-jobs', icon: Heart },
     { name: 'Applications', href: '/applications', icon: FileText },
