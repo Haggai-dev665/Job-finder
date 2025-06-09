@@ -21,6 +21,8 @@ const nameValidation = (field) => body(field)
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('Validation errors:', errors.array());
+    console.log('Request body:', req.body);
     return res.status(400).json({
       status: 'error',
       message: 'Validation failed',
@@ -40,6 +42,51 @@ const validateRegister = [
     .optional()
     .isIn(['candidate', 'employer'])
     .withMessage('Role must be either candidate or employer'),
+  // Optional preference fields
+  body('preferences.jobSearchStatus')
+    .optional()
+    .isIn(['ready-to-interview', 'open-to-offers', 'closed-to-offers'])
+    .withMessage('Invalid job search status'),
+  body('preferences.jobTypes')
+    .optional()
+    .isArray()
+    .withMessage('Job types must be an array'),
+  body('preferences.jobTypes.*')
+    .optional()
+    .isIn(['full-time', 'contractor', 'intern', 'co-founder'])
+    .withMessage('Invalid job type'),
+  body('preferences.salaryPeriod')
+    .optional()
+    .isIn(['yearly', 'monthly', 'hourly'])
+    .withMessage('Invalid salary period'),
+  body('preferences.desiredSalary')
+    .optional()
+    .isNumeric()
+    .withMessage('Desired salary must be a number'),
+  body('preferences.currentRole')
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage('Current role must be less than 100 characters'),
+  body('preferences.experienceYears')
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage('Experience years must be less than 50 characters'),
+  body('preferences.isStudent')
+    .optional()
+    .isBoolean()
+    .withMessage('isStudent must be a boolean'),
+  body('preferences.currentCompany')
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage('Current company must be less than 100 characters'),
+  body('preferences.location')
+    .optional()
+    .isLength({ max: 200 })
+    .withMessage('Location must be less than 200 characters'),
+  body('preferences.rolesLookingFor')
+    .optional()
+    .isArray()
+    .withMessage('Roles looking for must be an array'),
   handleValidationErrors
 ];
 

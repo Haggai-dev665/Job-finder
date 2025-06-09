@@ -1,388 +1,226 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { CountryDropdown, RegionDropdown } from 'react-country-region-selector';
-
-// Custom CSS for animations
-const customStyles = `
-  @keyframes pulse-animation {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.02); }
-    100% { transform: scale(1); }
-  }
-  
-  @keyframes bounce-subtle {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-2px); }
-  }
-  
-  .pulse-animation {
-    animation: pulse-animation 0.5s ease-in-out;
-  }
-  
-  .animate-bounce-subtle {
-    animation: bounce-subtle 1.5s infinite ease-in-out;
-  }
-  
-  .country-dropdown select option,
-  .region-dropdown select option {
-    background-color: #312e81;
-    color: white;
-    padding: 10px;
-  }
-  
-  .country-dropdown:hover select,
-  .region-dropdown:hover select {
-    box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
-  }
-`;
+import { Country, State, City } from 'country-state-city';
+import ReactCountryFlag from 'react-country-flag';
 import { 
-  User, 
-  Mail, 
-  Lock, 
-  Building, 
-  MapPin, 
   Eye, 
   EyeOff, 
-  Check, 
-  X,
-  Shield,
+  Briefcase, 
+  Sparkles, 
+  ArrowRight, 
+  ArrowLeft,
+  MapPin,
+  DollarSign,
+  Search,
+  Check,
+  Building,
+  GraduationCap,
   Users,
-  Briefcase,
-  Star,
-  Zap,
-  Award,
-  Sparkles,
-  Globe,
-  Code
+  Code,
+  ChevronDown
 } from 'lucide-react';
 
 const Register = () => {
-  // Remove any stale dropdown style sheets that might be causing icon duplication
-  useEffect(() => {
-    // Clean up any potential style conflicts when component mounts
-    const cleanup = () => {
-      // Remove any browser-injected styles that might be conflicting
-      const styleSheets = document.styleSheets;
-      for (let i = 0; i < styleSheets.length; i++) {
-        try {
-          const rules = styleSheets[i].cssRules || styleSheets[i].rules;
-          if (rules) {
-            for (let j = 0; j < rules.length; j++) {
-              // Look for rules affecting our dropdowns
-              if (rules[j].selectorText && 
-                  (rules[j].selectorText.includes('select') || 
-                   rules[j].selectorText.includes('dropdown'))) {
-                // If we find any that add backgrounds or arrows, try to neutralize them
-                if (rules[j].style && rules[j].style.backgroundImage) {
-                  rules[j].style.backgroundImage = 'none';
-                }
-              }
-            }
-          }
-        } catch (e) {
-          // Cross-origin stylesheets will throw errors, just ignore them
-        }
-      }
-    };
-    
-    cleanup();
-    
-    return () => {
-      // No cleanup needed when unmounting
-    };
-  }, []);
-  
+  const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    // Step 1 - Basic info
+    fullName: '',
     email: '',
     password: '',
-    confirmPassword: '',
     role: 'candidate',
-    company: '',
-    country: '',
-    city: '',
-    skills: [],
-    frontendSkills: [],
-    jobTypes: []
+    
+    // Step 2 - Personal details (moved to step 2)
+    location: {
+      country: null,
+      state: '',
+      city: ''
+    },
+    currentRole: '',
+    experienceYears: '',
+    isStudent: false,
+    currentCompany: '',
+    
+    // Step 3 - Job preferences (moved to step 3)
+    jobSearchStatus: '',
+    jobTypes: [],
+    desiredSalary: '',
+    salaryPeriod: 'yearly',
+    rolesLookingFor: [],
   });
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [skillInput, setSkillInput] = useState('');
-  const [frontendSkillInput, setFrontendSkillInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState({
-    score: 0,
-    feedback: [],
-    isValid: false
+  const [passwordValidation, setPasswordValidation] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false
   });
+  const [countries, setCountries] = useState([]);
+  const [states, setStates] = useState([]);
+  const [cities, setCities] = useState([]);
   
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const calculatePasswordStrength = (password) => {
-    let score = 0;
-    const feedback = [];
-    
-    if (password.length >= 8) {
-      score += 1;
-      feedback.push('At least 8 characters');
-    } else {
-      feedback.push('At least 8 characters');
-    }
-    
-    if (/[A-Z]/.test(password)) {
-      score += 1;
-      feedback.push('Uppercase letter');
-    } else {
-      feedback.push('Uppercase letter');
-    }
-    
-    if (/[a-z]/.test(password)) {
-      score += 1;
-      feedback.push('Lowercase letter');
-    } else {
-      feedback.push('Lowercase letter');
-    }
-    
-    if (/\d/.test(password)) {
-      score += 1;
-      feedback.push('Number');
-    } else {
-      feedback.push('Number');
-    }
-    
-    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      score += 1;
-      feedback.push('Special character');
-    } else {
-      feedback.push('Special character');
-    }
-
-    return {
-      score,
-      feedback: feedback.slice(0, 5),
-      isValid: score >= 3
-    };
-  };
+  // Initialize countries on component mount
+  React.useEffect(() => {
+    const allCountries = Country.getAllCountries();
+    setCountries(allCountries);
+  }, []);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     
-    if (name === 'password') {
-      setPasswordStrength(calculatePasswordStrength(value));
-    }
-    
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
+    if (name.startsWith('location.')) {
+      const locationField = name.split('.')[1];
       setFormData(prev => ({
         ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: parseInt(value) || value
+        location: {
+          ...prev.location,
+          [locationField]: value
         }
       }));
+      
+      // If country changes, update available states and reset state/city
+      if (locationField === 'country') {
+        const selectedCountry = countries.find(c => c.isoCode === value);
+        if (selectedCountry) {
+          const countryStates = State.getStatesOfCountry(value);
+          setStates(countryStates);
+          setCities([]);
+          setFormData(prev => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              country: {
+                isoCode: selectedCountry.isoCode,
+                name: selectedCountry.name,
+                flag: selectedCountry.flag
+              },
+              state: '',
+              city: ''
+            }
+          }));
+        }
+      }
+      
+      // If state changes, update available cities
+      if (locationField === 'state') {
+        const selectedState = states.find(s => s.isoCode === value);
+        if (selectedState) {
+          const stateCities = City.getCitiesOfState(formData.location.country.isoCode, value);
+          setCities(stateCities);
+          setFormData(prev => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              state: {
+                isoCode: selectedState.isoCode,
+                name: selectedState.name
+              },
+              city: ''
+            }
+          }));
+        }
+      }
+      
+      // If city changes
+      if (locationField === 'city') {
+        const selectedCity = cities.find(c => c.name === value);
+        if (selectedCity) {
+          setFormData(prev => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              city: {
+                name: selectedCity.name,
+                latitude: selectedCity.latitude,
+                longitude: selectedCity.longitude
+              }
+            }
+          }));
+        } else {
+          // For manual input
+          setFormData(prev => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              city: value
+            }
+          }));
+        }
+      }
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
-  const handleSkillAdd = (e) => {
-    if (e.key === 'Enter' || e.type === 'click') {
-      e.preventDefault();
-      if (skillInput.trim() && !formData.skills.includes(skillInput.trim())) {
-        setFormData(prev => ({
-          ...prev,
-          skills: [...prev.skills, skillInput.trim()]
-        }));
-        setSkillInput('');
-      }
-    }
-  };
-
-  const removeSkill = (skillToRemove) => {
-    setFormData(prev => ({
-      ...prev,
-      skills: prev.skills.filter(skill => skill !== skillToRemove)
-    }));
-  };
-  
-  const handleFrontendSkillAdd = (e) => {
-    if (e.key === 'Enter' || e.type === 'click') {
-      e.preventDefault();
-      if (frontendSkillInput.trim() && !formData.frontendSkills.includes(frontendSkillInput.trim())) {
-        setFormData(prev => ({
-          ...prev,
-          frontendSkills: [...prev.frontendSkills, frontendSkillInput.trim()]
-        }));
-        setFrontendSkillInput('');
-      }
-    }
-  };
-
-  const removeFrontendSkill = (skillToRemove) => {
-    setFormData(prev => ({
-      ...prev,
-      frontendSkills: prev.frontendSkills.filter(skill => skill !== skillToRemove)
-    }));
-  };
-  
-  const countryDropdownRef = useRef(null);
-  const regionDropdownRef = useRef(null);
-
-  // Apply custom styles to dropdowns
-  useEffect(() => {
-    const styleDropdowns = () => {
-      // Get all country and region select elements
-      const countrySelectElement = document.querySelector('.country-dropdown select');
-      const regionSelectElement = document.querySelector('.region-dropdown select');
-      
-      if (countrySelectElement) {
-        // Store a reference to the select element
-        countryDropdownRef.current = countrySelectElement;
-        
-        // Apply custom styles
-        countrySelectElement.style.backgroundImage = 'none';
-        countrySelectElement.style.backgroundColor = 'transparent';
-      }
-      
-      if (regionSelectElement) {
-        // Store a reference to the select element
-        regionDropdownRef.current = regionSelectElement;
-        
-        // Apply custom styles
-        regionSelectElement.style.backgroundImage = 'none';
-        regionSelectElement.style.backgroundColor = 'transparent';
-      }
-    };
-    
-    // Apply styles after a short delay to ensure elements are rendered
-    const timeoutId = setTimeout(styleDropdowns, 100);
-    
-    return () => clearTimeout(timeoutId);
-  }, [formData.country]); // Re-run when country changes to style the region dropdown as well
-
-  const selectCountry = (val) => {
-    setFormData(prev => ({
-      ...prev,
-      country: val,
-      city: '' // Reset city when country changes
-    }));
-    
-    // Trigger animation effect when country is selected
-    if (val && countryDropdownRef.current) {
-      // Apply our animation
-      countryDropdownRef.current.classList.add('pulse-animation');
-      
-      // Make sure any browser default styling is removed again
-      countryDropdownRef.current.style.backgroundImage = 'none';
-      countryDropdownRef.current.style.backgroundColor = 'transparent';
-      
-      // Remove the animation after it completes
-      setTimeout(() => {
-        if (countryDropdownRef.current) {
-          countryDropdownRef.current.classList.remove('pulse-animation');
-        }
-      }, 500);
-    }
-    
-    // This will also fix any potential UI glitches with the dropdown
-    setTimeout(() => {
-      const countrySelect = document.querySelector('.country-dropdown select');
-      if (countrySelect) {
-        countrySelect.style.backgroundImage = 'none';
-        countrySelect.style.backgroundColor = 'transparent';
-      }
-    }, 100);
-  };
-  
-  const selectPopularCountry = (countryCode) => {
-    selectCountry(countryCode);
-  };
-
-  const selectCity = (val) => {
-    setFormData(prev => ({
-      ...prev,
-      city: val
-    }));
-    
-    // Trigger animation effect when city is selected
-    if (val && regionDropdownRef.current) {
-      // Apply our animation
-      regionDropdownRef.current.classList.add('pulse-animation');
-      
-      // Make sure any browser default styling is removed again
-      regionDropdownRef.current.style.backgroundImage = 'none';
-      regionDropdownRef.current.style.backgroundColor = 'transparent';
-      
-      setTimeout(() => {
-        if (regionDropdownRef.current) {
-          regionDropdownRef.current.classList.remove('pulse-animation');
-        }
-      }, 500);
-    }
-    
-    // This will also fix any potential UI glitches with the dropdown
-    setTimeout(() => {
-      const regionSelect = document.querySelector('.region-dropdown select');
-      if (regionSelect) {
-        regionSelect.style.backgroundImage = 'none';
-        regionSelect.style.backgroundColor = 'transparent';
-      }
-    }, 100);
-  };
-
-  const handleJobTypeChange = (jobType) => {
-    setFormData(prev => ({
-      ...prev,
-      jobTypes: prev.jobTypes.includes(jobType)
-        ? prev.jobTypes.filter(type => type !== jobType)
-        : [...prev.jobTypes, jobType]
-    }));
-  };
-  
-  const selectSuggestedFrontendSkill = (skill) => {
-    if (!formData.frontendSkills.includes(skill)) {
       setFormData(prev => ({
         ...prev,
-        frontendSkills: [...prev.frontendSkills, skill]
+        [name]: type === 'checkbox' ? checked : value
       }));
+    }
+
+    // Validate password in real-time
+    if (name === 'password') {
+      validatePassword(value);
+    }
+  };
+
+  const validatePassword = (password) => {
+    setPasswordValidation({
+      length: password.length >= 6,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password)
+    });
+  };
+
+  const handleMultiSelect = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].includes(value)
+        ? prev[field].filter(item => item !== value)
+        : [...prev[field], value]
+    }));
+  };
+
+  const nextStep = () => {
+    if (currentStep < 3) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (!passwordStrength.isValid) {
-      setError('Password does not meet strength requirements');
-      return;
-    }
-
     setLoading(true);
     
+    const [firstName, ...lastNameParts] = formData.fullName.split(' ');
+    const lastName = lastNameParts.join(' ');
+    
     const result = await register({
-      firstName: formData.firstName,
-      lastName: formData.lastName,
+      firstName,
+      lastName,
       email: formData.email,
       password: formData.password,
       role: formData.role,
-      company: formData.company,
-      location: {
-        country: formData.country,
-        city: formData.city
-      },
       preferences: {
-        skills: formData.skills,
-        frontendSkills: formData.frontendSkills,
-        jobTypes: formData.jobTypes
+        jobSearchStatus: formData.jobSearchStatus,
+        jobTypes: formData.jobTypes,
+        desiredSalary: formData.desiredSalary,
+        salaryPeriod: formData.salaryPeriod,
+        rolesLookingFor: formData.rolesLookingFor,
+        location: formData.location,
+        currentRole: formData.currentRole,
+        experienceYears: formData.experienceYears,
+        isStudent: formData.isStudent,
+        currentCompany: formData.currentCompany
       }
     });
 
@@ -395,716 +233,144 @@ const Register = () => {
     setLoading(false);
   };
 
-  const jobTypes = [
-    { id: 'full-time', label: 'Full Time', icon: Briefcase, color: 'from-blue-500 to-blue-600' },
-    { id: 'part-time', label: 'Part Time', icon: Users, color: 'from-green-500 to-green-600' },
-    { id: 'contract', label: 'Contract', icon: Award, color: 'from-purple-500 to-purple-600' },
-    { id: 'remote', label: 'Remote', icon: Zap, color: 'from-orange-500 to-orange-600' },
-    { id: 'hybrid', label: 'Hybrid', icon: Sparkles, color: 'from-pink-500 to-pink-600' },
-    { id: 'internship', label: 'Internship', icon: Star, color: 'from-indigo-500 to-indigo-600' }
-  ];
-
-  // Suggested frontend technologies for quick selection
-  const suggestedFrontendSkills = [
-    { name: 'React', color: 'from-blue-500 to-blue-600' },
-    { name: 'Vue', color: 'from-green-500 to-green-600' },
-    { name: 'Angular', color: 'from-red-500 to-red-600' },
-    { name: 'TypeScript', color: 'from-blue-600 to-blue-700' },
-    { name: 'JavaScript', color: 'from-yellow-500 to-yellow-600' },
-    { name: 'CSS', color: 'from-blue-400 to-blue-500' },
-    { name: 'Sass', color: 'from-pink-500 to-pink-600' },
-    { name: 'Tailwind', color: 'from-cyan-500 to-cyan-600' },
-    { name: 'Redux', color: 'from-purple-500 to-purple-600' },
-    { name: 'Next.js', color: 'from-gray-800 to-gray-900' },
-    { name: 'HTML', color: 'from-orange-500 to-orange-600' }
-  ];
-  
-  // Popular countries for job seekers for quick selection
-  const popularCountries = [
-    { name: 'United States', code: 'US', flag: '🇺🇸', color: 'from-blue-500 to-red-500' },
-    { name: 'United Kingdom', code: 'GB', flag: '🇬🇧', color: 'from-blue-600 to-red-600' },
-    { name: 'Canada', code: 'CA', flag: '🇨🇦', color: 'from-red-500 to-white' },
-    { name: 'Australia', code: 'AU', flag: '🇦🇺', color: 'from-blue-600 to-red-600' },
-    { name: 'Germany', code: 'DE', flag: '🇩🇪', color: 'from-black to-red-600' },
-    { name: 'India', code: 'IN', flag: '🇮🇳', color: 'from-orange-500 to-green-600' },
-    { name: 'France', code: 'FR', flag: '🇫🇷', color: 'from-blue-600 to-red-600' },
-    { name: 'Singapore', code: 'SG', flag: '🇸🇬', color: 'from-red-600 to-white' },
-    { name: 'Japan', code: 'JP', flag: '🇯🇵', color: 'from-white to-red-600' },
-    { name: 'Brazil', code: 'BR', flag: '🇧🇷', color: 'from-green-600 to-yellow-500' },
-    { name: 'South Africa', code: 'ZA', flag: '🇿🇦', color: 'from-green-600 to-red-600' },
-    { name: 'United Arab Emirates', code: 'AE', flag: '🇦🇪', color: 'from-green-600 to-black' }
-  ];
-
-  const getPasswordStrengthColor = () => {
-    if (passwordStrength.score <= 1) return 'bg-gradient-to-r from-red-600 to-red-500';
-    if (passwordStrength.score <= 2) return 'bg-gradient-to-r from-orange-600 to-orange-500';
-    if (passwordStrength.score <= 3) return 'bg-gradient-to-r from-amber-600 to-amber-500';
-    if (passwordStrength.score <= 4) return 'bg-gradient-to-r from-cyan-600 to-cyan-500';
-    return 'bg-gradient-to-r from-green-600 to-green-500';
+  const canProceed = () => {
+    switch (currentStep) {
+      case 1:
+        const isPasswordValid = Object.values(passwordValidation).every(Boolean);
+        return formData.fullName && formData.email && formData.password && isPasswordValid;
+      case 2:
+        return formData.location.country && formData.location.state && formData.currentRole && formData.experienceYears;
+      case 3:
+        return formData.jobSearchStatus && formData.jobTypes.length > 0;
+      default:
+        return false;
+    }
   };
 
-  const getPasswordStrengthText = () => {
-    if (passwordStrength.score <= 1) return 'Very Weak';
-    if (passwordStrength.score <= 2) return 'Weak';
-    if (passwordStrength.score <= 3) return 'Fair';
-    if (passwordStrength.score <= 4) return 'Good';
-    return 'Strong';
-  };
+  const jobSearchStatuses = [
+    {
+      id: 'ready-to-interview',
+      title: 'Ready to interview',
+      description: "You're actively looking for new work and ready to interview. Your job profile will be visible by startups."
+    },
+    {
+      id: 'open-to-offers',
+      title: 'Open to offers',
+      description: "You're not looking but open to hear about new opportunities. Your job profile will be visible to startups."
+    },
+    {
+      id: 'closed-to-offers',
+      title: 'Closed to offers',
+      description: "You're not looking and don't want to hear about new opportunities. Your job profile will be hidden to startups."
+    }
+  ];
 
-  // Custom styles for responsive dropdowns
-  useEffect(() => {
-    // Apply custom styles to select elements created by the library
-    const enhanceDropdowns = () => {
-      const selects = document.querySelectorAll('select');
-      
-      selects.forEach(select => {
-        // Only apply if not already enhanced
-        if (!select.classList.contains('enhanced')) {
-          select.classList.add('enhanced');
-          
-          // Make sure text is properly visible
-          select.style.color = 'inherit';
-          select.style.WebkitAppearance = 'none';
-          select.style.MozAppearance = 'none';
-          select.style.appearance = 'none';
-          
-          // Fix for the default arrow/icon issue
-          select.style.backgroundImage = 'none !important'; 
-          select.style.backgroundColor = 'transparent !important';
-          
-          // Remove any unwanted browser defaults that might be causing issues
-          select.style.border = 'none';
-          select.style.outline = 'none';
-          select.style.boxShadow = 'none';
-          
-          // Ensure proper sizing on mobile
-          select.style.maxWidth = '100%';
-          select.style.textOverflow = 'ellipsis';
-          
-          // Enhanced touch targets for mobile
-          select.style.paddingTop = '16px';
-          select.style.paddingBottom = '16px';
-          
-          // Add event listeners for focus/blur effects
-          select.addEventListener('focus', () => {
-            select.parentElement.classList.add('dropdown-focused');
-            
-            // Enhance the parent container with a pulse effect
-            const container = select.closest('.relative');
-            if (container) {
-              container.classList.add('pulse-animation');
-              setTimeout(() => {
-                container.classList.remove('pulse-animation');
-              }, 500);
-            }
-          });
-          
-          select.addEventListener('blur', () => {
-            select.parentElement.classList.remove('dropdown-focused');
-          });
-          
-          // Handle change event
-          select.addEventListener('change', () => {
-            if (select.value) {
-              select.classList.add('has-value');
-              select.style.color = 'white';
-              select.style.fontWeight = 'bold';
-            } else {
-              select.classList.remove('has-value');
-            }
-            
-            // Trigger animation effect on change
-            select.classList.add('pulse-animation');
-            setTimeout(() => {
-              select.classList.remove('pulse-animation');
-            }, 500);
-          });
-        }
-      });
-    };
-    
-    // Run once on mount and then whenever country changes
-    enhanceDropdowns();
-    
-    // Set up a mutation observer to detect when the dropdowns are injected/updated
-    const observer = new MutationObserver(enhanceDropdowns);
-    observer.observe(document.body, { childList: true, subtree: true });
-    
-    return () => observer.disconnect();
-  }, [formData.country]);
+  const jobTypeOptions = [
+    { id: 'full-time', label: 'Full-time Employee', selected: true },
+    { id: 'contractor', label: 'Contractor' },
+    { id: 'intern', label: 'Intern' },
+    { id: 'co-founder', label: 'Co-founder' }
+  ];
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-800 to-blue-900 py-8 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Inject custom styles */}
-      <style>
-        {`
-          @keyframes pulse-animation {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); }
-          }
-          
-          @keyframes bounce-subtle {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-2px); }
-          }
-          
-          @keyframes glow {
-            0%, 100% { box-shadow: 0 0 5px rgba(251, 191, 36, 0.2); }
-            50% { box-shadow: 0 0 15px rgba(251, 191, 36, 0.5); }
-          }
-          
-          @keyframes border-pulse {
-            0%, 100% { border-color: rgba(79, 70, 229, 0.3); }
-            50% { border-color: rgba(251, 191, 36, 0.5); }
-          }
-          
-          @keyframes slide-up {
-            0% { transform: translateY(20px); opacity: 0; }
-            100% { transform: translateY(0); opacity: 1; }
-          }
-          
-          @keyframes fade-in {
-            0% { opacity: 0; }
-            100% { opacity: 1; }
-          }
-          
-          @keyframes slide-in-right {
-            0% { transform: translateX(20px); opacity: 0; }
-            100% { transform: translateX(0); opacity: 1; }
-          }
-          
-          @keyframes slide-in-left {
-            0% { transform: translateX(-20px); opacity: 0; }
-            100% { transform: translateX(0); opacity: 1; }
-          }
-          
-          @keyframes scale-in {
-            0% { transform: scale(0.95); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-          }
-          
-          .pulse-animation {
-            animation: pulse-animation 0.5s ease-in-out;
-          }
-          
-          .animate-bounce-subtle {
-            animation: bounce-subtle 1.5s infinite ease-in-out;
-          }
-          
-          .animate-glow {
-            animation: glow 2s infinite ease-in-out;
-          }
-          
-          .animate-border-pulse {
-            animation: border-pulse 2s infinite ease-in-out;
-          }
-          
-          .animate-slide-up {
-            animation: slide-up 0.6s ease-out forwards;
-          }
-          
-          .animate-fade-in {
-            animation: fade-in 0.5s ease-out forwards;
-          }
-          
-          .animate-slide-in-right {
-            animation: slide-in-right 0.5s ease-out forwards;
-          }
-          
-          .animate-slide-in-left {
-            animation: slide-in-left 0.5s ease-out forwards;
-          }
-          
-          .animate-scale-in {
-            animation: scale-in 0.5s ease-out forwards;
-          }
-          
-          /* Fix for duplicate icons and cleaner dropdowns */
-          .country-dropdown select,
-          .region-dropdown select {
-            background-image: none !important;
-            background-color: transparent !important;
-            border: none;
-            outline: none !important;
-            box-shadow: none !important;
-          }
-          
-          .country-dropdown select option,
-          .region-dropdown select option {
-            background-color: #312e81;
-            color: white;
-            padding: 10px;
-          }
-          
-          .country-dropdown:hover select,
-          .region-dropdown:hover select {
-            box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
-          }
-          
-          /* Override any browser defaults that might be causing icon duplication */
-          .country-dropdown select::-ms-expand,
-          .region-dropdown select::-ms-expand {
-            display: none !important;
-          }
-          
-          .dropdown-focused {
-            box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.3);
-          }
-          
-          /* Mobile optimizations */
-          @media (max-width: 640px) {
-            .country-dropdown select,
-            .region-dropdown select {
-              font-size: 16px; /* Prevents zoom on iOS */
-              padding-top: 14px;
-              padding-bottom: 14px;
-            }
-            
-            /* Better touch targets on mobile */
-            .country-dropdown,
-            .region-dropdown {
-              min-height: 60px;
-            }
-          }
-          
-          /* Style improvements for select values */
-          .has-value {
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
-            letter-spacing: 0.01em;
-          }
-          
-          /* Remove default focus styles and replace with our own */
-          select:focus {
-            outline: none !important;
-          }
-          
-          /* Make scrollbars look nicer in dropdowns */
-          select::-webkit-scrollbar {
-            width: 8px;
-          }
-          
-          select::-webkit-scrollbar-track {
-            background: rgba(30, 27, 75, 0.8);
-          }
-          
-          select::-webkit-scrollbar-thumb {
-            background: rgba(251, 191, 36, 0.5);
-            border-radius: 4px;
-          }
-          
-          select::-webkit-scrollbar-thumb:hover {
-            background: rgba(251, 191, 36, 0.7);
-          }
-        `}
-      </style>
-      
-      {/* Enhanced Background decoration */}
-      <div className="absolute inset-0">
-        <div className="absolute top-10 left-10 w-96 h-96 bg-gradient-to-r from-pink-500/40 to-purple-500/40 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-gradient-to-r from-cyan-500/30 to-blue-500/30 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-full blur-3xl animate-pulse delay-500"></div>
-        <div className="absolute bottom-1/3 left-1/4 w-72 h-72 bg-gradient-to-r from-green-500/20 to-teal-500/20 rounded-full blur-3xl animate-pulse delay-700"></div>
-        <div className="absolute top-1/4 right-1/4 w-80 h-80 bg-gradient-to-r from-rose-500/20 to-red-500/20 rounded-full blur-3xl animate-pulse delay-300"></div>
-      </div>
-      
-      <div className="max-w-5xl mx-auto relative z-10">
-        <div className="text-center mb-12 animate-fade-in-up">
-          <div className="mx-auto w-24 h-24 bg-gradient-to-r from-amber-500 to-pink-600 rounded-2xl flex items-center justify-center mb-8 shadow-2xl animate-bounce-subtle transform rotate-12 hover:rotate-0 transition-transform duration-500 border-4 border-white/20">
-            <Shield className="w-12 h-12 text-white" />
-          </div>
-          <h1 className="text-6xl font-black bg-gradient-to-r from-amber-400 via-pink-500 to-cyan-400 bg-clip-text text-transparent mb-4 animate-pulse">
-            Join Our Community
-          </h1>
-          <p className="text-xl text-gray-100 max-w-2xl mx-auto leading-relaxed backdrop-blur-sm py-2">
-            Create your account and discover thousands of amazing opportunities across all career fields
-          </p>
-          <p className="mt-4 text-gray-300">
-            Already have an account?{' '}
-            <Link 
-              to="/login" 
-              className="font-semibold text-amber-400 hover:text-amber-300 transition-colors duration-200 relative group"
-            >
-              Sign in here
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-amber-400 transition-all duration-300 group-hover:w-full"></span>
-            </Link>
-          </p>
-        </div>
+  const roleOptions = [
+    'Software Engineer',
+    'Product Manager',
+    'Designer',
+    'Data Scientist',
+    'Marketing Manager',
+    'Sales Representative', 
+    'Business Analyst',
+    'Teacher',
+    'Nurse',
+    'Accountant',
+    'Chef',
+    'Construction Worker',
+    'Electrician',
+    'Plumber',
+    'Lawyer',
+    'Doctor',
+    'Writer',
+    'Photographer',
+    'Real Estate Agent',
+    'Customer Service Representative',
+    'Project Manager',
+    'HR Manager',
+    'Financial Advisor',
+    'Other'
+  ];
 
-        <form className="space-y-8 bg-gradient-to-br from-indigo-900/80 to-purple-900/80 backdrop-blur-xl p-12 rounded-3xl shadow-2xl border border-white/20 animate-slide-up text-white relative z-10" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-900/70 border-2 border-red-500/50 text-red-100 px-6 py-4 rounded-xl relative animate-shake shadow-lg">
-              <div className="flex items-center">
-                <X className="w-6 h-6 mr-3 text-red-400" />
-                <span className="font-medium text-lg">{error}</span>
-              </div>
+  const experienceOptions = [
+    '0-1 years',
+    '2-3 years', 
+    '4-5 years',
+    '6-10 years',
+    '10+ years'
+  ];
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div className="space-y-6">
+            {/* Google Sign Up Button */}
+            <button className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 mb-4 transition-all duration-300 text-sm md:text-base hover:shadow-md transform hover:scale-[1.02] animate-fade-in" style={{ animationDelay: '0.2s' }}>
+              <svg className="w-4 h-4 md:w-5 md:h-5 mr-3" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Sign up with Google
+            </button>
+
+            <div className="text-center mb-4 animate-fade-in" style={{ animationDelay: '0.3s' }}>
+              <span className="text-gray-400 text-xs md:text-sm">or Sign up with Email</span>
             </div>
-          )}
 
-          {/* Role Selection */}
-          <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-            <label className="block text-lg font-bold text-white mb-6">
-              I am a
-            </label>
-            <div className="grid grid-cols-2 gap-6">
-              <label className="group cursor-pointer">
-                <input
-                  type="radio"
-                  name="role"
-                  value="candidate"
-                  checked={formData.role === 'candidate'}
-                  onChange={handleChange}
-                  className="sr-only"
-                />
-                <div className={`p-8 rounded-2xl border-3 cursor-pointer transition-all duration-300 text-center group-hover:shadow-xl ${
-                  formData.role === 'candidate' 
-                    ? 'border-amber-400 bg-gradient-to-br from-blue-600 to-cyan-600 shadow-xl transform scale-105' 
-                    : 'border-gray-500 hover:border-amber-300 bg-indigo-800/50 hover:bg-gradient-to-br hover:from-blue-800/50 hover:to-cyan-800/50'
-                }`}>
-                  <User className={`w-12 h-12 mx-auto mb-4 ${formData.role === 'candidate' ? 'text-amber-400' : 'text-gray-300'} transition-colors duration-300`} />
-                  <span className={`text-lg font-bold block text-white`}>
-                    Job Seeker
-                  </span>
-                  <span className={`text-sm ${formData.role === 'candidate' ? 'text-amber-300' : 'text-gray-400'} block mt-2`}>
-                    Find your dream job
-                  </span>
-                </div>
-              </label>
-              <label className="group cursor-pointer">
-                <input
-                  type="radio"
-                  name="role"
-                  value="employer"
-                  checked={formData.role === 'employer'}
-                  onChange={handleChange}
-                  className="sr-only"
-                />
-                <div className={`p-8 rounded-2xl border-3 cursor-pointer transition-all duration-300 text-center group-hover:shadow-xl ${
-                  formData.role === 'employer' 
-                    ? 'border-amber-400 bg-gradient-to-br from-pink-600 to-rose-600 shadow-xl transform scale-105' 
-                    : 'border-gray-500 hover:border-amber-300 bg-indigo-800/50 hover:bg-gradient-to-br hover:from-pink-800/50 hover:to-rose-800/50'
-                }`}>
-                  <Building className={`w-12 h-12 mx-auto mb-4 ${formData.role === 'employer' ? 'text-amber-400' : 'text-gray-300'} transition-colors duration-300`} />
-                  <span className={`text-lg font-bold block text-white`}>
-                    Employer
-                  </span>
-                  <span className={`text-sm ${formData.role === 'employer' ? 'text-amber-300' : 'text-gray-400'} block mt-2`}>
-                    Hire top talent
-                  </span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* Basic Info */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-            <div className="space-y-6">
-              <div className="group">
-                <label htmlFor="firstName" className="block text-sm font-bold text-gray-100 mb-3">
-                  First Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-300 transition-colors duration-200 group-focus-within:text-amber-400" />
-                  <input
-                    id="firstName"
-                    name="firstName"
-                    type="text"
-                    required
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    className="pl-12 block w-full border-2 border-indigo-500/30 rounded-xl py-4 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 hover:border-indigo-400/50 bg-indigo-800/50 focus:bg-indigo-700/70 text-lg"
-                    placeholder="Enter your first name"
-                  />
-                </div>
-              </div>
-
-              <div className="group">
-                <label htmlFor="lastName" className="block text-sm font-bold text-gray-100 mb-3">
-                  Last Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-300 transition-colors duration-200 group-focus-within:text-amber-400" />
-                  <input
-                    id="lastName"
-                    name="lastName"
-                    type="text"
-                    required
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className="pl-12 block w-full border-2 border-indigo-500/30 rounded-xl py-4 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 hover:border-indigo-400/50 bg-indigo-800/50 focus:bg-indigo-700/70 text-lg"
-                    placeholder="Enter your last name"
-                  />
-                </div>
-              </div>
-
-              <div className="group">
-                <label htmlFor="email" className="block text-sm font-bold text-gray-100 mb-3">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-300 transition-colors duration-200 group-focus-within:text-amber-400" />
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="pl-12 block w-full border-2 border-indigo-500/30 rounded-xl py-4 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 hover:border-indigo-400/50 bg-indigo-800/50 focus:bg-indigo-700/70 text-lg"
-                    placeholder="Enter your email address"
-                  />
-                </div>
-              </div>
-
-              {formData.role === 'employer' && (
-                <div className="group animate-slide-down">
-                  <label htmlFor="company" className="block text-sm font-bold text-gray-100 mb-3">
-                    Company Name
-                  </label>
-                  <div className="relative">
-                    <Building className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-300 transition-colors duration-200 group-focus-within:text-amber-400" />
-                    <input
-                      id="company"
-                      name="company"
-                      type="text"
-                      value={formData.company}
-                      onChange={handleChange}
-                      className="pl-12 block w-full border-2 border-indigo-500/30 rounded-xl py-4 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 hover:border-indigo-400/50 bg-indigo-800/50 focus:bg-indigo-700/70 text-lg"
-                      placeholder="Enter your company name"
-                    />
-                  </div>
+            <div className="space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm animate-shake">
+                  {error}
                 </div>
               )}
 
-              <div className="space-y-4">
-                {/* Location section header */}
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-base font-bold text-amber-400">Your Location</h3>
-                  <div className="relative group">
-                    <button 
-                      type="button"
-                      className="text-gray-400 hover:text-amber-400 bg-indigo-800/30 rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                    >
-                      ?
-                    </button>
-                    <div className="absolute right-0 w-64 p-3 bg-indigo-900/90 backdrop-blur-sm rounded-xl border border-indigo-500/30 text-xs text-white transform translate-y-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-200 z-50 shadow-xl">
-                      <div className="flex items-start mb-2">
-                        <svg className="w-4 h-4 text-amber-400 mt-0.5 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p>Your location helps us find relevant job opportunities near you and allows employers to match with candidates in their target regions.</p>
-                      </div>
-                      <div className="flex items-center text-amber-300 text-xs">
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Your location data is protected and private
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="group">
-                  <label htmlFor="country" className="block text-sm font-bold text-gray-100 mb-3 flex items-center justify-between">
-                    <span>Country</span>
-                    {formData.country && (
-                      <span className="ml-auto text-xs bg-amber-500/30 text-amber-200 px-2 py-0.5 rounded-full flex items-center">
-                        <Check className="w-3 h-3 mr-1" /> Selected
-                      </span>
-                    )}
-                  </label>
-                  <div className={`relative rounded-xl overflow-hidden shadow-lg backdrop-blur-sm transition-all duration-300 ${formData.country ? 'animate-glow shadow-amber-400/20' : 'hover:shadow-amber-500/20 group-focus-within:shadow-amber-400/30'}`}>
-                    <div className="absolute inset-0 bg-gradient-to-r from-pink-500/10 to-blue-500/10 opacity-50 z-0"></div>
-                    <div className={`absolute inset-0 bg-gradient-to-br ${formData.country ? 'from-amber-700/20 to-indigo-800/40 animate-border-pulse' : 'from-indigo-700/30 to-purple-800/30'} opacity-80 z-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
-                    <div className="relative z-10 country-dropdown">
-                      <CountryDropdown
-                        value={formData.country}
-                        onChange={selectCountry}
-                        classes={`block w-full border-2 ${formData.country ? 'border-amber-500/50 bg-indigo-700/70' : 'border-indigo-500/30 bg-indigo-800/50'} rounded-xl py-4 px-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 hover:border-indigo-400/50 focus:bg-indigo-700/70 text-lg appearance-none cursor-pointer backdrop-blur-md ${formData.country ? 'has-value' : ''}`}
-                      />
-                      <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
-                        <div className="relative">
-                          <svg className={`w-5 h-5 text-amber-400 ${formData.country ? '' : 'animate-bounce-subtle'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                          <div className="absolute -inset-1 bg-amber-400/20 rounded-full blur-md -z-10"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Popular Countries Quick Select */}
-                  {!formData.country && (
-                    <div className="mt-3 animate-fade-in">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-sm text-gray-300">Popular locations:</p>
-                        <div>
-                          <span className="text-xs text-amber-400">Quick select</span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                        {popularCountries.slice(0, 8).map((country) => (
-                          <button
-                            key={country.code}
-                            type="button"
-                            onClick={() => selectPopularCountry(country.name)}
-                            className={`inline-flex items-center px-3 py-2.5 bg-gradient-to-r ${country.color} bg-opacity-20 hover:bg-opacity-30 rounded-lg text-sm text-white border border-white/10 transition-all hover:border-amber-400/50 hover:shadow-lg hover:-translate-y-1 cursor-pointer group`}
-                          >
-                            <span className="mr-2 text-lg group-hover:scale-125 transition-transform duration-300 w-6 h-6 flex items-center justify-center">{country.flag}</span>
-                            <span className="font-medium truncate">{country.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                      
-                      {/* Show More Countries Button */}
-                      <div className="mt-2 text-center">
-                        <button 
-                          type="button" 
-                          onClick={() => document.getElementById('more-countries-modal').classList.toggle('hidden')}
-                          className="inline-flex items-center text-xs text-amber-400 hover:text-amber-300 transition-colors"
-                        >
-                          <span>Show more countries</span>
-                          <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                      </div>
-                      
-                      {/* More Countries Modal (Hidden by Default) */}
-                      <div id="more-countries-modal" className="hidden mt-3 p-3 bg-indigo-900/80 backdrop-blur-sm rounded-xl border border-indigo-500/30 animate-fade-in">
-                        <div className="mb-2 flex justify-between items-center">
-                          <h4 className="text-sm font-bold text-white">All Countries</h4>
-                          <button 
-                            type="button"
-                            onClick={() => document.getElementById('more-countries-modal').classList.add('hidden')}
-                            className="text-gray-400 hover:text-white"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
-                          {popularCountries.map((country) => (
-                            <button
-                              key={country.code}
-                              type="button"
-                              onClick={() => {
-                                selectPopularCountry(country.name);
-                                document.getElementById('more-countries-modal').classList.add('hidden');
-                              }}
-                              className={`inline-flex items-center px-2 py-1.5 hover:bg-indigo-700/50 rounded-lg text-xs text-white transition-all hover:shadow-md group`}
-                            >
-                              <span className="mr-1.5 text-base">{country.flag}</span>
-                              <span className="truncate">{country.name}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="group">
-                  <label htmlFor="city" className="block text-sm font-bold text-gray-100 mb-3 flex items-center justify-between">
-                    <span>City/Town</span>
-                    {formData.city && (
-                      <span className="ml-auto text-xs bg-amber-500/30 text-amber-200 px-2 py-0.5 rounded-full flex items-center">
-                        <Check className="w-3 h-3 mr-1" /> Selected
-                      </span>
-                    )}
-                  </label>
-                  <div className={`relative rounded-xl overflow-hidden shadow-lg backdrop-blur-sm transition-all duration-300 ${!formData.country ? 'opacity-80' : formData.city ? 'animate-glow shadow-amber-400/20' : 'hover:shadow-amber-500/20'}`}>
-                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 opacity-50 z-0"></div>
-                    <div className={`absolute inset-0 bg-gradient-to-br ${!formData.country ? 'from-gray-700/30 to-gray-800/30' : formData.city ? 'from-amber-700/20 to-indigo-800/40 animate-border-pulse' : 'from-blue-700/30 to-indigo-800/30'} opacity-80 z-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
-                    
-                    {/* Decorative elements that only appear when city is selected */}
-                    {formData.city && (
-                      <>
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/50 to-pink-500/50"></div>
-                        <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-amber-500/20 rounded-full blur-xl"></div>
-                      </>
-                    )}
-                    
-                    <div className="relative z-10 region-dropdown">
-                      <RegionDropdown
-                        country={formData.country}
-                        value={formData.city}
-                        onChange={selectCity}
-                        disabled={!formData.country}
-                        classes={`block w-full border-2 ${!formData.country ? 'border-gray-600/50 bg-gray-800/50 text-gray-400' : formData.city ? 'border-amber-500/50 bg-indigo-700/70 text-white has-value' : 'border-indigo-500/30 bg-indigo-800/50 text-white'} rounded-xl py-4 px-4 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 hover:border-indigo-400/50 focus:bg-indigo-700/70 text-lg appearance-none cursor-pointer`}
-                        blankOptionLabel={formData.country ? "Select city/town" : "Select a country first"}
-                      />
-                      <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
-                        <div className="relative">
-                          <svg className={`w-5 h-5 ${!formData.country ? 'text-gray-500' : formData.city ? 'text-amber-400' : 'text-amber-400 animate-bounce-subtle'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                          {formData.country && (
-                            <div className="absolute -inset-1 bg-amber-400/20 rounded-full blur-md -z-10"></div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Custom city input field that appears if needed */}
-                  {formData.country && formData.city === "Not Listed" && (
-                    <div className="mt-3 animate-fade-in">
-                      <div className="relative">
-                        <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-amber-400" />
-                        <input
-                          type="text"
-                          name="customCity"
-                          placeholder="Enter your city/town"
-                          className="pl-12 block w-full border-2 border-amber-500/30 rounded-xl py-3 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 bg-indigo-800/50 focus:bg-indigo-700/70 text-md"
-                          onChange={(e) => setFormData(prev => ({ ...prev, customCity: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Current location option */}
-                  {formData.country && !formData.city && (
-                    <div className="mt-3 flex justify-center">
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          // In a real implementation, this would use the browser's geolocation API
-                          // and a reverse geocoding service to get the user's city
-                          setFormData(prev => ({ ...prev, city: "Auto-detected location" }));
-                          
-                          // For this demo, we'll just show a success message after a delay
-                          setTimeout(() => {
-                            const citySelect = document.querySelector('.region-dropdown select');
-                            if (citySelect) {
-                              citySelect.classList.add('pulse-animation');
-                              setTimeout(() => citySelect.classList.remove('pulse-animation'), 500);
-                            }
-                          }, 500);
-                        }}
-                        className="inline-flex items-center text-sm text-amber-400 hover:text-amber-300 bg-indigo-800/30 px-3 py-1.5 rounded-full transition-all duration-300 hover:bg-indigo-700/50 border border-amber-500/20 hover:border-amber-500/40"
-                      >
-                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Use my current location
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-6">
               <div className="group">
-                <label htmlFor="password" className="block text-sm font-bold text-gray-100 mb-3">
+                <label htmlFor="fullName" className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                  Full Name
+                </label>
+                <input
+                  id="fullName"
+                  name="fullName"
+                  type="text"
+                  required
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  placeholder="enter text"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base transition-all duration-300 group-hover:border-gray-400 bg-white text-gray-900 placeholder-gray-400"
+                />
+              </div>
+
+              <div className="group">
+                <label htmlFor="email" className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="mail@website.com"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base transition-all duration-300 group-hover:border-gray-400 bg-white text-gray-900 placeholder-gray-400"
+                />
+              </div>
+
+              <div className="group">
+                <label htmlFor="password" className="block text-xs md:text-sm font-medium text-gray-700 mb-1">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-300 transition-colors duration-200 group-focus-within:text-amber-400" />
                   <input
                     id="password"
                     name="password"
@@ -1112,300 +378,736 @@ const Register = () => {
                     required
                     value={formData.password}
                     onChange={handleChange}
-                    className="pl-12 pr-12 block w-full border-2 border-indigo-500/30 rounded-xl py-4 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 hover:border-indigo-400/50 bg-indigo-800/50 focus:bg-indigo-700/70 text-lg"
-                    placeholder="Create a strong password"
+                    placeholder="min 6 characters"
+                    className="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base transition-all duration-300 group-hover:border-gray-400 bg-white text-gray-900 placeholder-gray-400"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-300 hover:text-amber-400 transition-colors duration-200"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
                   >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showPassword ? <EyeOff className="w-4 h-4 md:w-5 md:h-5" /> : <Eye className="w-4 h-4 md:w-5 md:h-5" />}
                   </button>
                 </div>
                 
-                {/* Password Strength Indicator */}
+                {/* Password Requirements */}
                 {formData.password && (
-                  <div className="mt-3 space-y-2 bg-indigo-900/50 p-3 rounded-xl">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-200">Password Strength</span>
-                      <span className={`text-sm font-bold ${
-                        passwordStrength.score <= 1 ? 'text-red-400' : 
-                        passwordStrength.score <= 2 ? 'text-orange-400' : 
-                        passwordStrength.score <= 3 ? 'text-amber-400' : 
-                        passwordStrength.score <= 4 ? 'text-cyan-400' : 'text-green-400'
-                      }`}>
-                        {getPasswordStrengthText()}
-                      </span>
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg border">
+                    <p className="text-xs font-medium text-gray-700 mb-2">Password must contain:</p>
+                    <div className="space-y-1">
+                      <div className={`flex items-center text-xs ${passwordValidation.length ? 'text-green-600' : 'text-red-500'}`}>
+                        {passwordValidation.length ? (
+                          <Check className="w-3 h-3 mr-2" />
+                        ) : (
+                          <div className="w-3 h-3 mr-2 border border-current rounded-full"></div>
+                        )}
+                        At least 6 characters
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordValidation.uppercase ? 'text-green-600' : 'text-red-500'}`}>
+                        {passwordValidation.uppercase ? (
+                          <Check className="w-3 h-3 mr-2" />
+                        ) : (
+                          <div className="w-3 h-3 mr-2 border border-current rounded-full"></div>
+                        )}
+                        One uppercase letter (A-Z)
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordValidation.lowercase ? 'text-green-600' : 'text-red-500'}`}>
+                        {passwordValidation.lowercase ? (
+                          <Check className="w-3 h-3 mr-2" />
+                        ) : (
+                          <div className="w-3 h-3 mr-2 border border-current rounded-full"></div>
+                        )}
+                        One lowercase letter (a-z)
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordValidation.number ? 'text-green-600' : 'text-red-500'}`}>
+                        {passwordValidation.number ? (
+                          <Check className="w-3 h-3 mr-2" />
+                        ) : (
+                          <div className="w-3 h-3 mr-2 border border-current rounded-full"></div>
+                        )}
+                        One number (0-9)
+                      </div>
                     </div>
-                    <div className="w-full bg-indigo-950 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-300 ${getPasswordStrengthColor()}`}
-                        style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {passwordStrength.feedback.map((requirement, index) => (
-                        <div key={requirement} className="flex items-center">
-                          {passwordStrength.score > index ? 
-                            <Check className="w-3 h-3 text-green-400 mr-1" /> : 
-                            <X className="w-3 h-3 text-gray-500 mr-1" />
-                          }
-                          <span className={passwordStrength.score > index ? 'text-green-300' : 'text-gray-400'}>
-                            {requirement}
-                          </span>
-                        </div>
-                      ))}
+                    
+                    {/* Password Strength Indicator */}
+                    <div className="mt-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-gray-600">Password Strength</span>
+                        <span className={`text-xs font-bold ${
+                          Object.values(passwordValidation).filter(Boolean).length === 4 ? 'text-green-600' :
+                          Object.values(passwordValidation).filter(Boolean).length >= 2 ? 'text-yellow-600' :
+                          'text-red-500'
+                        }`}>
+                          {Object.values(passwordValidation).filter(Boolean).length === 4 ? 'Strong' :
+                           Object.values(passwordValidation).filter(Boolean).length >= 2 ? 'Medium' :
+                           'Weak'}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            Object.values(passwordValidation).filter(Boolean).length === 4 ? 'bg-green-500 w-full' :
+                            Object.values(passwordValidation).filter(Boolean).length >= 2 ? 'bg-yellow-500 w-2/3' :
+                            'bg-red-500 w-1/3'
+                          }`}
+                        ></div>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-
-              <div className="group">
-                <label htmlFor="confirmPassword" className="block text-sm font-bold text-gray-100 mb-3">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-300 transition-colors duration-200 group-focus-within:text-amber-400" />
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    required
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className="pl-12 pr-12 block w-full border-2 border-indigo-500/30 rounded-xl py-4 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-400 transition-all duration-300 hover:border-indigo-400/50 bg-indigo-800/50 focus:bg-indigo-700/70 text-lg"
-                    placeholder="Confirm your password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-300 hover:text-amber-400 transition-colors duration-200"
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-                {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                  <p className="mt-2 text-sm text-red-400 flex items-center bg-red-900/30 p-2 rounded-lg">
-                    <X className="w-4 h-4 mr-1" />
-                    Passwords do not match
-                  </p>
-                )}
-                {formData.confirmPassword && formData.password === formData.confirmPassword && formData.confirmPassword.length > 0 && (
-                  <p className="mt-2 text-sm text-green-400 flex items-center bg-green-900/30 p-2 rounded-lg">
-                    <Check className="w-4 h-4 mr-1" />
-                    Passwords match
-                  </p>
                 )}
               </div>
             </div>
           </div>
+        );
 
-          {formData.role === 'candidate' && (
-            <div className="space-y-8 animate-slide-down border-t border-white/10 pt-8">
-              <h3 className="text-2xl font-bold text-amber-400 text-center">Customize Your Experience</h3>
-              
-              {/* Professional Skills */}
-              <div>
-                <div className="flex items-center mb-4">
-                  <Code className="w-6 h-6 text-amber-400 mr-2" />
-                  <label className="text-lg font-bold text-gray-100">
-                    Professional Skills
-                  </label>
-                </div>
-                
-                <p className="text-gray-300 mb-6">Add skills relevant to your profession to help employers find the perfect match.</p>
-                
-                <div className="flex flex-wrap gap-3 mb-4 min-h-[3rem] p-4 bg-indigo-950/50 rounded-xl border-2 border-dashed border-indigo-500/30 backdrop-blur-sm">
-                  {formData.skills.length === 0 ? (
-                    <span className="text-gray-400 italic">Add skills to showcase your expertise</span>
-                  ) : (
-                    formData.skills.map((skill, index) => (
-                      <span
-                        key={skill}
-                        className="bg-gradient-to-r from-pink-600 to-purple-700 text-white px-4 py-2 rounded-full text-sm flex items-center shadow-lg animate-fade-in border border-pink-400/20 hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                        style={{ animationDelay: `${index * 0.1}s` }}
-                      >
-                        {skill}
-                        <button
-                          type="button"
-                          onClick={() => removeSkill(skill)}
-                          className="ml-2 text-white hover:text-red-200 hover:bg-white/20 rounded-full w-5 h-5 flex items-center justify-center transition-all duration-200"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))
-                  )}
-                </div>
-                <div className="flex rounded-xl overflow-hidden shadow-lg border-2 border-indigo-500/30 focus-within:border-amber-500 transition-all duration-300">
-                  <input
-                    type="text"
-                    value={skillInput}
-                    onChange={(e) => setSkillInput(e.target.value)}
-                    onKeyPress={handleSkillAdd}
-                    className="flex-1 py-4 px-4 focus:outline-none bg-indigo-900/50 text-lg text-white placeholder-gray-400"
-                    placeholder="Type a skill and press Enter or click Add"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSkillAdd}
-                    className="bg-gradient-to-r from-amber-600 to-pink-600 text-white px-8 py-4 hover:from-amber-700 hover:to-pink-700 transition-all duration-200 font-bold text-lg"
+      case 2:
+        return (
+          <div className="space-y-8 animate-fade-in">
+            {/* Hero Section */}
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Users className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Tell us about yourself</h2>
+              <p className="text-gray-600">Help us personalize your experience</p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Location - Country */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                  <MapPin className="w-5 h-5 text-blue-600 mr-2" />
+                  Which country are you based in?
+                </label>
+                <p className="text-sm text-blue-600 mb-3">This helps us show you relevant opportunities</p>
+                <div className="relative">
+                  <select
+                    name="location.country"
+                    value={formData.location.country?.isoCode || ''}
+                    onChange={handleChange}
+                    className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 text-lg group-hover:border-gray-400 transition-all duration-300 appearance-none"
                   >
-                    Add
-                  </button>
-                </div>
-                
-                {/* Skill Suggestions */}
-                <div className="mt-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-gray-300">Popular skills for various careers:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {['Project Management', 'Communication', 'Customer Service', 'Leadership', 'Problem Solving', 
-                      'Data Analysis', 'Marketing', 'Design', 'Research', 'Teaching',
-                      'Accounting', 'Writing', 'Teamwork', 'Sales', 'Strategy',
-                      'Programming', 'Healthcare', 'Engineering', 'Negotiation'].map((skill) => (
-                      <button
-                        key={skill}
-                        type="button"
-                        onClick={() => selectSuggestedFrontendSkill(skill)}
-                        className={`px-3 py-1.5 bg-gradient-to-r from-indigo-700 to-indigo-900 text-white text-xs font-medium rounded-full transition-all hover:shadow-md hover:from-indigo-600 border border-indigo-500/30 ${
-                          formData.skills.includes(skill) ? 'opacity-50' : ''
-                        }`}
-                      >
-                        {skill}
-                      </button>
+                    <option value="">Select your country</option>
+                    {countries.map((country) => (
+                      <option key={country.isoCode} value={country.isoCode}>
+                        {country.name}
+                      </option>
                     ))}
-                  </div>
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+                  {formData.location.country && (
+                    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <ReactCountryFlag 
+                        countryCode={formData.location.country.isoCode} 
+                        svg 
+                        style={{
+                          width: '1.5em',
+                          height: '1.1em',
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
-              
-              {/* Technical Skills */}
-              <div className="mt-10 border-t border-white/10 pt-8">
-                <div className="flex items-center mb-4">
-                  <Briefcase className="w-6 h-6 text-cyan-400 mr-2" />
-                  <label className="text-lg font-bold text-gray-100">
-                    Technical Skills
+
+              {/* Location - State/Region */}
+              {formData.location.country && states.length > 0 && (
+                <div className="group">
+                  <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                    <MapPin className="w-5 h-5 text-blue-600 mr-2" />
+                    What state/region are you in?
                   </label>
+                  <div className="relative">
+                    <select
+                      name="location.state"
+                      value={formData.location.state?.isoCode || ''}
+                      onChange={handleChange}
+                      className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 text-lg group-hover:border-gray-400 transition-all duration-300 appearance-none"
+                    >
+                      <option value="">Select your state/region</option>
+                      {states.map((state) => (
+                        <option key={state.isoCode} value={state.isoCode}>
+                          {state.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+                  </div>
                 </div>
-                
-                <p className="text-gray-300 mb-6">Add technical skills, software proficiencies, or tools you're experienced with.</p>
-                
-                <div className="flex flex-wrap gap-3 mb-4 min-h-[3rem] p-4 bg-indigo-950/50 rounded-xl border-2 border-dashed border-indigo-500/30">
-                  {formData.frontendSkills.length === 0 ? (
-                    <span className="text-gray-400 italic">Add technical skills you're proficient in</span>
-                  ) : (
-                    formData.frontendSkills.map((skill, index) => (
-                      <span
-                        key={skill}
-                        className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white px-4 py-2 rounded-full text-sm flex items-center shadow-lg animate-fade-in border border-cyan-400/20 hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                        style={{ animationDelay: `${index * 0.1}s` }}
+              )}
+
+              {/* Location - City */}
+              {formData.location.country && (
+                <div className="group">
+                  <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                    <MapPin className="w-5 h-5 text-blue-600 mr-2" />
+                    City {cities.length > 0 ? '(select from list or type manually)' : '(optional)'}
+                  </label>
+                  <div className="relative">
+                    {cities.length > 0 ? (
+                      <select
+                        name="location.city"
+                        value={typeof formData.location.city === 'object' ? formData.location.city.name : formData.location.city}
+                        onChange={handleChange}
+                        className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 text-lg group-hover:border-gray-400 transition-all duration-300 appearance-none"
                       >
-                        {skill}
-                        <button
-                          type="button"
-                          onClick={() => removeFrontendSkill(skill)}
-                          className="ml-2 text-white hover:text-red-200 hover:bg-white/20 rounded-full w-5 h-5 flex items-center justify-center transition-all duration-200"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))
+                        <option value="">Select your city or type manually below</option>
+                        {cities.map((city) => (
+                          <option key={city.name} value={city.name}>
+                            {city.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        name="location.city"
+                        value={typeof formData.location.city === 'object' ? formData.location.city.name : formData.location.city}
+                        onChange={handleChange}
+                        placeholder="Enter your city"
+                        className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-lg group-hover:border-gray-400 transition-all duration-300"
+                      />
+                    )}
+                    {cities.length > 0 && (
+                      <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+                    )}
+                  </div>
+                  {cities.length > 0 && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        name="location.city"
+                        value={typeof formData.location.city === 'object' ? formData.location.city.name : formData.location.city}
+                        onChange={handleChange}
+                        placeholder="Or type your city manually"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-base group-hover:border-gray-400 transition-all duration-300"
+                      />
+                    </div>
                   )}
                 </div>
-                
-                <div className="flex rounded-xl overflow-hidden shadow-lg border-2 border-indigo-500/30 focus-within:border-cyan-500 transition-all duration-300">
-                  <input
-                    type="text"
-                    value={frontendSkillInput}
-                    onChange={(e) => setFrontendSkillInput(e.target.value)}
-                    onKeyPress={handleFrontendSkillAdd}
-                    className="flex-1 py-4 px-4 focus:outline-none bg-indigo-900/50 text-white text-lg placeholder-gray-400"
-                    placeholder="Type a technical skill and press Enter"
-                  />
+              )}
+
+              {/* Current Role */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                  <Briefcase className="w-5 h-5 text-blue-600 mr-2" />
+                  What's your current role?
+                </label>
+                <select
+                  name="currentRole"
+                  value={formData.currentRole}
+                  onChange={handleChange}
+                  className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 text-lg group-hover:border-gray-400 transition-all duration-300 appearance-none"
+                >
+                  <option value="">Select your role</option>
+                  {roleOptions.map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Experience */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                  <GraduationCap className="w-5 h-5 text-blue-600 mr-2" />
+                  Years of experience
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {experienceOptions.map((exp) => (
+                    <button
+                      key={exp}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, experienceYears: exp }))}
+                      className={`p-4 border-2 rounded-xl text-center transition-all duration-300 transform hover:scale-105 ${
+                        formData.experienceYears === exp
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-blue-300 text-gray-700'
+                      }`}
+                    >
+                      <div className="font-semibold">{exp}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Student Status */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  Are you a student or recent graduate?
+                </label>
+                <div className="flex gap-4">
                   <button
                     type="button"
-                    onClick={handleFrontendSkillAdd}
-                    className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-8 py-4 hover:from-cyan-700 hover:to-blue-700 transition-all duration-200 font-bold text-lg"
+                    onClick={() => setFormData(prev => ({ ...prev, isStudent: true }))}
+                    className={`flex-1 p-4 border-2 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                      formData.isStudent
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 hover:border-blue-300 text-gray-700'
+                    }`}
                   >
-                    Add
+                    <div className="text-center font-semibold">Yes</div>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, isStudent: false }))}
+                    className={`flex-1 p-4 border-2 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                      !formData.isStudent
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 hover:border-blue-300 text-gray-700'
+                    }`}
+                  >
+                    <div className="text-center font-semibold">No</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Current Company */}
+              <div className="group">
+                <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                  <Building className="w-5 h-5 text-blue-600 mr-2" />
+                  Current company (optional)
+                </label>
+                <p className="text-sm text-blue-600 mb-3">Your company will never see that you're looking for opportunities</p>
+                <input
+                  type="text"
+                  name="currentCompany"
+                  value={formData.currentCompany}
+                  onChange={handleChange}
+                  placeholder="Company name"
+                  className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 text-lg group-hover:border-gray-400 transition-all duration-300"
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 3:
+        return (
+          <div className="space-y-8 animate-fade-in">
+            {/* Hero Section */}
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Search className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Your dream job awaits</h2>
+              <p className="text-gray-600">Tell us what you're looking for</p>
+            </div>
+
+            <div className="space-y-8">
+              {/* Job Search Status */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
+                  What's your job search status?
+                </h3>
+                <div className="space-y-4">
+                  {jobSearchStatuses.map((status) => (
+                    <label key={status.id} className="block cursor-pointer group">
+                      <div className={`p-6 border-2 rounded-2xl transition-all duration-300 group-hover:shadow-lg transform group-hover:scale-[1.02] ${
+                        formData.jobSearchStatus === status.id
+                          ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50 shadow-lg'
+                          : 'border-gray-200 group-hover:border-blue-300'
+                      }`}>
+                        <div className="flex items-start">
+                          <input
+                            type="radio"
+                            name="jobSearchStatus"
+                            value={status.id}
+                            checked={formData.jobSearchStatus === status.id}
+                            onChange={handleChange}
+                            className="mt-1.5 w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          />
+                          <div className="ml-4">
+                            <div className="font-semibold text-gray-900 text-lg">{status.title}</div>
+                            <div className="text-sm text-blue-600 mt-1 font-medium">This means:</div>
+                            <div className="text-sm text-gray-600 mt-2 leading-relaxed">{status.description}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
 
               {/* Job Types */}
               <div>
-                <label className="block text-lg font-bold text-white mb-4">
-                  Preferred Job Types
-                </label>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                  {jobTypes.map((type, index) => {
-                    const IconComponent = type.icon;
-                    return (
-                      <label 
-                        key={type.id} 
-                        className="group cursor-pointer animate-fade-in"
-                        style={{ animationDelay: `${index * 0.1}s` }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.jobTypes.includes(type.id)}
-                          onChange={() => handleJobTypeChange(type.id)}
-                          className="sr-only"
-                        />
-                        <div className={`p-6 rounded-2xl border-3 transition-all duration-300 text-center group-hover:shadow-xl ${
-                          formData.jobTypes.includes(type.id)
-                            ? 'border-indigo-500 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-xl transform scale-105'
-                            : 'border-gray-200 hover:border-indigo-300 hover:bg-gradient-to-br hover:from-indigo-25 hover:to-purple-25'
-                        }`}>
-                          <IconComponent className={`w-8 h-8 mx-auto mb-3 ${
-                            formData.jobTypes.includes(type.id) ? 'text-indigo-600' : 'text-gray-400'
-                          } transition-colors duration-300`} />
-                          <span className={`text-sm font-bold block ${
-                            formData.jobTypes.includes(type.id) ? 'text-indigo-700' : 'text-gray-600'
-                          }`}>
-                            {type.label}
-                          </span>
-                        </div>
-                      </label>
-                    );
-                  })}
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
+                  What type of work interests you?
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">Select all that apply</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {jobTypeOptions.map((type) => (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => handleMultiSelect('jobTypes', type.id)}
+                      className={`p-6 border-2 rounded-2xl text-left transition-all duration-300 transform hover:scale-105 hover:shadow-lg ${
+                        formData.jobTypes.includes(type.id)
+                          ? 'border-blue-500 bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                          : 'border-gray-200 hover:border-blue-300 text-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-lg">{type.label}</span>
+                        {formData.jobTypes.includes(type.id) && (
+                          <Check className="w-6 h-6" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Salary */}
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-6 rounded-2xl border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                  <DollarSign className="w-5 h-5 text-green-600 mr-2" />
+                  Desired salary (optional)
+                </h3>
+                <p className="text-sm text-blue-600 mb-4">This helps us match you with the right opportunities</p>
+                <div className="flex gap-4">
+                  <div className="relative flex-1">
+                    <DollarSign className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="number"
+                      name="desiredSalary"
+                      value={formData.desiredSalary}
+                      onChange={handleChange}
+                      placeholder="50,000"
+                      className="w-full pl-12 pr-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 text-lg"
+                    />
+                  </div>
+                  <select
+                    name="salaryPeriod"
+                    value={formData.salaryPeriod}
+                    onChange={handleChange}
+                    className="px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 text-lg"
+                  >
+                    <option value="yearly">per year</option>
+                    <option value="monthly">per month</option>
+                    <option value="hourly">per hour</option>
+                  </select>
                 </div>
               </div>
             </div>
-          )}
-          
-          {/* Create Account Button - Always visible for all roles */}
-          <div className="mt-20 pt-8 border-t border-indigo-500/20">
-            <button
-              type="submit"
-              disabled={loading || !passwordStrength.isValid}
-              className="relative w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white py-6 px-8 rounded-2xl font-bold text-xl shadow-2xl hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 focus:outline-none focus:ring-4 focus:ring-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] overflow-hidden group animate-fade-in z-20"
-            >
-              <span className={`relative z-10 flex items-center justify-center transition-all duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}>
-                <Shield className="w-6 h-6 mr-3" />
-                Create My Account
-              </span>
-              {loading && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-8 h-8 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span className="ml-4 text-white font-bold">Creating Your Account...</span>
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-            </button>
           </div>
-        </form>
+        );
 
-        {/* Trust indicators */}
-        <div className="mt-8 text-center text-gray-500">
-          <p className="flex items-center justify-center text-sm">
-            <Shield className="w-4 h-4 mr-2" />
-            Your data is encrypted and secure
-          </p>
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left Side - Geometric Illustration - Only show on step 1 */}
+      {currentStep === 1 && (
+        <div className="flex-1 relative overflow-hidden bg-gradient-to-br from-orange-100 to-orange-200 min-h-[50vh] lg:min-h-screen">
+          {/* Animated background elements */}
+          <div className="absolute inset-0">
+            <div className="absolute top-10 left-10 w-32 h-32 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full animate-pulse blur-xl"></div>
+            <div className="absolute bottom-20 right-20 w-40 h-40 bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full animate-pulse blur-xl" style={{ animationDelay: '1s' }}></div>
+          </div>
+
+          {/* Main geometric shapes grid */}
+          <div className="absolute inset-0 p-4 md:p-8">
+            {/* Responsive grid */}
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4 h-full">
+              {/* Column 1 */}
+              <div className="space-y-2 md:space-y-4 animate-fade-in">
+                {/* Orange circle with laptop - enhanced */}
+                <div className="w-16 h-16 md:w-32 md:h-32 bg-gradient-to-br from-orange-300 to-orange-400 rounded-full flex items-center justify-center transform hover:scale-105 transition-transform duration-300 shadow-lg">
+                  <div className="w-8 h-6 md:w-16 md:h-12 bg-blue-500 rounded-lg relative shadow-md">
+                    <div className="absolute inset-1 md:inset-2 bg-white rounded flex items-center justify-center">
+                      <Briefcase className="w-2 h-2 md:w-4 md:h-4 text-blue-500" />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Blue stacked shapes */}
+                <div className="w-12 h-12 md:w-24 md:h-24 bg-gradient-to-br from-pink-400 to-pink-500 rounded-xl md:rounded-2xl shadow-lg transform hover:rotate-3 transition-transform duration-300"></div>
+                
+                {/* Photo placeholder */}
+                <div className="w-10 h-10 md:w-20 md:h-20 rounded-lg md:rounded-xl overflow-hidden shadow-lg transform hover:scale-105 transition-transform duration-300">
+                  <img 
+                    src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face&auto=format" 
+                    alt="Professional" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Orange star */}
+                <div className="w-8 h-8 md:w-16 md:h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg transform rotate-45 flex items-center justify-center shadow-lg hover:rotate-90 transition-transform duration-500">
+                  <Sparkles className="w-3 h-3 md:w-6 md:h-6 text-white transform -rotate-45" />
+                </div>
+              </div>
+
+              {/* Column 2 */}
+              <div className="space-y-2 md:space-y-4 pt-8 md:pt-16 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+                {/* Blue squares */}
+                <div className="w-12 h-12 md:w-24 md:h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl md:rounded-2xl shadow-lg transform hover:-rotate-3 transition-transform duration-300"></div>
+                <div className="w-16 h-10 md:w-32 md:h-20 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg hover:scale-105 transition-transform duration-300">
+                  <div className="grid grid-cols-2 gap-0.5 md:gap-1">
+                    <div className="w-2 h-2 md:w-4 md:h-4 bg-yellow-600 rounded animate-pulse"></div>
+                    <div className="w-2 h-2 md:w-4 md:h-4 bg-yellow-600 rounded animate-pulse" style={{ animationDelay: '0.5s' }}></div>
+                    <div className="w-2 h-2 md:w-4 md:h-4 bg-yellow-600 rounded animate-pulse" style={{ animationDelay: '1s' }}></div>
+                    <div className="w-2 h-2 md:w-4 md:h-4 bg-yellow-600 rounded animate-pulse" style={{ animationDelay: '1.5s' }}></div>
+                  </div>
+                </div>
+                
+                {/* Pink cross shape */}
+                <div className="w-12 h-12 md:w-24 md:h-24 bg-gradient-to-br from-yellow-300 to-yellow-400 rounded-xl md:rounded-2xl relative shadow-lg hover:scale-105 transition-transform duration-300">
+                  <div className="absolute inset-2 md:inset-4 bg-gradient-to-br from-pink-400 to-pink-500 rounded-lg"></div>
+                </div>
+              </div>
+
+              {/* Column 3 */}
+              <div className="space-y-2 md:space-y-4 pt-4 md:pt-8 animate-fade-in" style={{ animationDelay: '0.4s' }}>
+                {/* Blue X shape */}
+                <div className="w-10 h-10 md:w-20 md:h-20 bg-gradient-to-br from-orange-400 to-orange-500 rounded-lg md:rounded-xl flex items-center justify-center shadow-lg hover:rotate-12 transition-transform duration-300">
+                  <div className="text-blue-600 text-lg md:text-3xl font-bold">✕</div>
+                </div>
+                
+                {/* Photo */}
+                <div className="w-12 h-12 md:w-24 md:h-24 rounded-lg md:rounded-xl overflow-hidden shadow-lg transform hover:scale-105 transition-transform duration-300">
+                  <img 
+                    src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=96&h=96&fit=crop&crop=face&auto=format" 
+                    alt="Team member" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Pink donut */}
+                <div className="w-10 h-10 md:w-20 md:h-20 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full relative shadow-lg hover:scale-110 transition-transform duration-300">
+                  <div className="absolute inset-1.5 md:inset-3 bg-gradient-to-br from-pink-400 to-pink-500 rounded-full">
+                    <div className="absolute inset-1.5 md:inset-3 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full"></div>
+                  </div>
+                </div>
+                
+                {/* Red diamonds */}
+                <div className="w-12 h-12 md:w-24 md:h-24 bg-gradient-to-br from-orange-400 to-orange-500 rounded-lg md:rounded-xl grid grid-cols-2 gap-0.5 md:gap-1 p-1 md:p-2 shadow-lg hover:rotate-6 transition-transform duration-300">
+                  <div className="bg-red-500 rounded transform rotate-45 animate-pulse"></div>
+                  <div className="bg-red-500 rounded transform rotate-45 animate-pulse" style={{ animationDelay: '0.5s' }}></div>
+                  <div className="bg-red-500 rounded transform rotate-45 animate-pulse" style={{ animationDelay: '1s' }}></div>
+                  <div className="bg-red-500 rounded transform rotate-45 animate-pulse" style={{ animationDelay: '1.5s' }}></div>
+                </div>
+              </div>
+
+              {/* Column 4 - Hidden on mobile */}
+              <div className="hidden md:flex md:flex-col md:space-y-4 md:pt-12 animate-fade-in" style={{ animationDelay: '0.6s' }}>
+                {/* Photo */}
+                <div className="w-20 h-20 rounded-xl overflow-hidden shadow-lg transform hover:scale-105 transition-transform duration-300">
+                  <img 
+                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face&auto=format" 
+                    alt="Professional woman" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                
+                {/* Green checkered */}
+                <div className="w-16 h-16 bg-white rounded-lg grid grid-cols-3 gap-0.5 p-1 shadow-lg hover:scale-105 transition-transform duration-300">
+                  <div className="bg-green-500 rounded-sm animate-pulse"></div>
+                  <div className="bg-pink-400 rounded-sm animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="bg-green-500 rounded-sm animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                  <div className="bg-pink-400 rounded-sm animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                  <div className="bg-green-500 rounded-sm animate-pulse" style={{ animationDelay: '0.8s' }}></div>
+                  <div className="bg-pink-400 rounded-sm animate-pulse" style={{ animationDelay: '1s' }}></div>
+                  <div className="bg-green-500 rounded-sm animate-pulse" style={{ animationDelay: '1.2s' }}></div>
+                  <div className="bg-pink-400 rounded-sm animate-pulse" style={{ animationDelay: '1.4s' }}></div>
+                  <div className="bg-green-500 rounded-sm animate-pulse" style={{ animationDelay: '1.6s' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom text */}
+          <div className="absolute bottom-4 md:bottom-16 left-1/2 transform -translate-x-1/2 text-center px-4 animate-fade-in-up">
+            <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold text-gray-800 mb-2 md:mb-4 leading-tight">
+              Find the job<br />made for<br />you.
+            </h1>
+            <p className="text-gray-700 text-sm md:text-lg hidden md:block">
+              Browse over 130K jobs at top companies<br />and fast-growing startups.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Background for steps 2 and 3 */}
+      {currentStep > 1 && (
+        <div className="fixed inset-0 z-0">
+          <img 
+            src={currentStep === 2 
+              ? "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1920&h=1080&fit=crop&auto=format"
+              : "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=1920&h=1080&fit=crop&auto=format"
+            }
+            alt="Background" 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-900/80 via-purple-900/70 to-indigo-900/80"></div>
+        </div>
+      )}
+
+      {/* Right Side - Registration Form */}
+      <div className={`${currentStep === 1 ? 'w-full lg:w-96 xl:w-[28rem]' : 'flex-1 max-w-4xl mx-auto'} ${currentStep > 1 ? 'relative z-10' : ''} bg-white flex flex-col justify-center px-6 md:px-8 py-6 lg:py-8`}>
+        <div className={`${currentStep === 1 ? 'max-w-sm' : 'max-w-2xl'} mx-auto w-full`}>
+          {/* Header */}
+          <div className={`text-center ${currentStep === 1 ? 'lg:text-right' : ''} mb-8 animate-fade-in`}>
+            <div className={`flex items-center ${currentStep === 1 ? 'justify-center lg:justify-end' : 'justify-center'} mb-4`}>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-3">
+                <Briefcase className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-xl md:text-2xl font-bold text-gray-900">Career Flow</span>
+            </div>
+            {currentStep > 1 && (
+              <div className="mb-6">
+                <div className="flex items-center justify-center space-x-2 mb-4">
+                  {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${
+                        step <= currentStep 
+                          ? 'bg-blue-500 text-white shadow-lg' 
+                          : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {step < currentStep ? <Check className="w-5 h-5" /> : step}
+                      </div>
+                      {step < 3 && (
+                        <div className={`w-12 h-1 mx-2 rounded transition-all duration-300 ${
+                          step < currentStep ? 'bg-blue-500' : 'bg-gray-200'
+                        }`} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-sm text-blue-600 font-medium">
+                  Step {currentStep} of 3
+                </div>
+              </div>
+            )}
+            <h2 className="text-3xl md:text-4xl font-bold text-black mb-2">
+              {currentStep === 1 ? 'Create Account' : 
+               currentStep === 2 ? 'Personal Details' : 
+               'Job Preferences'}
+            </h2>
+            <p className="text-gray-600 text-lg">
+              {currentStep === 1 ? 'Find your next opportunity!' : 
+               currentStep === 2 ? 'Tell us about your background' : 
+               'What kind of role are you seeking?'}
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={currentStep === 3 ? handleSubmit : (e) => e.preventDefault()} className={`animate-fade-in ${currentStep > 1 ? 'bg-white/95 backdrop-blur-sm rounded-3xl p-8 shadow-2xl' : ''}`} style={{ animationDelay: '0.4s' }}>
+            {renderStepContent()}
+
+            {/* Navigation Buttons */}
+            <div className="flex justify-between mt-12 pt-8 border-t border-gray-200">
+              {currentStep > 1 && (
+                <button
+                  type="button"
+                  onClick={prevStep}
+                  className="flex items-center px-8 py-4 border-2 border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
+                >
+                  <ArrowLeft className="w-5 h-5 mr-3" />
+                  Back
+                </button>
+              )}
+
+              {currentStep < 3 ? (
+                <button
+                  type="button"
+                  onClick={nextStep}
+                  disabled={!canProceed()}
+                  className="ml-auto bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-8 rounded-xl font-bold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center group transform hover:scale-105 hover:shadow-xl"
+                >
+                  Continue
+                  <ArrowRight className="w-5 h-5 ml-3 group-hover:translate-x-1 transition-transform duration-200" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={loading || !canProceed()}
+                  className="ml-auto bg-gradient-to-r from-green-600 to-blue-600 text-white py-4 px-8 rounded-xl font-bold hover:from-green-700 hover:to-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center group transform hover:scale-105 hover:shadow-xl"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                      Creating Account...
+                    </>
+                  ) : (
+                    <>
+                      Create Account
+                      <Check className="w-5 h-5 ml-3" />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </form>
+
+          {/* Footer - Only show on step 1 */}
+          {currentStep === 1 && (
+            <>
+              <p className="text-xs text-gray-500 mt-4 leading-relaxed animate-fade-in" style={{ animationDelay: '0.6s' }}>
+                By continuing you accept our{' '}
+                <Link to="/terms" className="text-black underline hover:text-gray-700 transition-colors duration-200">
+                  standard terms and conditions
+                </Link>{' '}
+                and our{' '}
+                <Link to="/privacy" className="text-black underline hover:text-gray-700 transition-colors duration-200">
+                  privacy policy
+                </Link>
+                .
+              </p>
+
+              <div className="mt-6 pt-4 border-t border-gray-200 animate-fade-in" style={{ animationDelay: '0.7s' }}>
+                <p className="text-center text-xs md:text-sm text-gray-600">
+                  Already have an account?{' '}
+                  <Link 
+                    to="/login" 
+                    className="text-blue-600 font-semibold hover:text-blue-700 transition-colors duration-200 underline decoration-2 underline-offset-2"
+                  >
+                    Log in
+                  </Link>
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Enhanced CSS Animations */}
+      <style jsx>{`
+        @keyframes fade-in {
+          0% { opacity: 0; transform: translateY(20px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fade-in-up {
+          0% { opacity: 0; transform: translateY(40px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.8s ease-out forwards;
+        }
+        .animate-fade-in-up {
+          animation: fade-in-up 1s ease-out forwards;
+        }
+        .animate-float {
+          animation: float 3s ease-in-out infinite;
+        }
+        .animate-shake {
+          animation: shake 0.5s ease-in-out;
+        }
+      `}</style>
     </div>
   );
 };

@@ -24,7 +24,30 @@ class UserService {
       throw new Error('User already exists with this email');
     }
 
-    // Create user
+    // Parse location from frontend - now expecting object with country, state, and city
+    let userLocationObj = {};
+    if (preferences?.location && typeof preferences.location === 'object') {
+      userLocationObj = {
+        country: {
+          isoCode: preferences.location.country?.isoCode || '',
+          name: preferences.location.country?.name || '',
+          flag: preferences.location.country?.flag || ''
+        },
+        state: {
+          isoCode: preferences.location.state?.isoCode || '',
+          name: preferences.location.state?.name || ''
+        },
+        city: typeof preferences.location.city === 'object' 
+          ? {
+              name: preferences.location.city.name || '',
+              latitude: preferences.location.city.latitude || null,
+              longitude: preferences.location.city.longitude || null
+            }
+          : preferences.location.city || ''
+      };
+    }
+
+    // Create user with all frontend fields
     const user = await User.create({
       firstName,
       lastName,
@@ -32,14 +55,37 @@ class UserService {
       password,
       role,
       company,
-      location: {
-        city: location?.city || '',
-        country: location?.country || ''
-      },
+      // Updated location handling
+      userLocation: userLocationObj,
+      // New fields from frontend - moved from preferences
+      currentRole: preferences?.currentRole || '',
+      experienceYears: preferences?.experienceYears || '',
+      isStudent: preferences?.isStudent || false,
+      currentCompany: preferences?.currentCompany || '',
       skills: preferences?.skills || [],
       frontendSkills: preferences?.frontendSkills || [],
       preferences: {
-        jobTypes: preferences?.jobTypes || []
+        // Frontend fields
+        jobSearchStatus: preferences?.jobSearchStatus || '',
+        jobTypes: preferences?.jobTypes || [],
+        desiredSalary: preferences?.desiredSalary ? Number(preferences.desiredSalary) : undefined,
+        salaryPeriod: preferences?.salaryPeriod || 'yearly',
+        rolesLookingFor: preferences?.rolesLookingFor || [],
+        // Existing fields
+        jobType: preferences?.jobType || 'full-time',
+        salaryRange: preferences?.salaryRange || {},
+        location: {
+          country: userLocationObj.country,
+          state: userLocationObj.state,
+          city: userLocationObj.city,
+          remote: preferences?.location?.remote || false
+        },
+        industries: preferences?.industries || [],
+        notifications: preferences?.notifications || {
+          email: true,
+          jobAlerts: true,
+          companyUpdates: true
+        }
       }
     });
 

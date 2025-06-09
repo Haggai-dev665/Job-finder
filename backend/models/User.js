@@ -98,20 +98,88 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company'
   }],
+  // New fields from frontend
+  currentRole: {
+    type: String,
+    trim: true
+  },
+  experienceYears: {
+    type: String,
+    trim: true
+  },
+  isStudent: {
+    type: Boolean,
+    default: false
+  },
+  currentCompany: {
+    type: String,
+    trim: true
+  },
+  // User location (separate from preferences location)
+  userLocation: {
+    country: {
+      isoCode: String,
+      name: String,
+      flag: String
+    },
+    state: {
+      isoCode: String,
+      name: String
+    },
+    city: {
+      name: String,
+      latitude: Number,
+      longitude: Number
+    }
+  },
   preferences: {
     jobType: {
       type: String,
       enum: ['full-time', 'part-time', 'contract', 'freelance', 'internship'],
       default: 'full-time'
     },
+    // New fields from frontend
+    jobSearchStatus: {
+      type: String,
+      enum: ['ready-to-interview', 'open-to-offers', 'closed-to-offers'],
+      trim: true
+    },
+    jobTypes: [{
+      type: String,
+      enum: ['full-time', 'contractor', 'intern', 'co-founder'],
+      trim: true
+    }],
+    desiredSalary: {
+      type: Number
+    },
+    salaryPeriod: {
+      type: String,
+      enum: ['yearly', 'monthly', 'hourly'],
+      default: 'yearly'
+    },
+    rolesLookingFor: [{
+      type: String,
+      trim: true
+    }],
     salaryRange: {
       min: Number,
       max: Number
     },
     location: {
-      city: String,
-      state: String,
-      country: String,
+      country: {
+        isoCode: String,
+        name: String,
+        flag: String
+      },
+      state: {
+        isoCode: String,
+        name: String
+      },
+      city: {
+        name: String,
+        latitude: Number,
+        longitude: Number
+      },
       remote: {
         type: Boolean,
         default: false
