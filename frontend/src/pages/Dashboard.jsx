@@ -14,7 +14,8 @@ import {
   CurrencyDollarIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  PlusIcon
+  PlusIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleIconSolid } from '@heroicons/react/24/solid';
 
@@ -214,7 +215,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="p-6">
-              {recentApplications.length > 0 ? (
+              {Array.isArray(recentApplications) && recentApplications.length > 0 ? (
                 <div className="space-y-4">
                   {recentApplications.slice(0, 5).map((application, index) => (
                     <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -338,7 +339,7 @@ const Dashboard = () => {
         </div>
 
         {/* Recommended Jobs */}
-        {recommendedJobs.length > 0 && (
+        {Array.isArray(recommendedJobs) && recommendedJobs.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm border">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">

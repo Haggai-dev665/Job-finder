@@ -53,7 +53,7 @@ class DashboardService {
   // Get job statistics
   async getJobStats() {
     try {
-      const response = await apiClient.get('/api/public/jobs/stats');
+      const response = await apiClient.get('/public/jobs/stats');
       return response.data.data || response.data;
     } catch (error) {
       console.error('Error fetching job stats:', error);
@@ -105,7 +105,9 @@ class DashboardService {
   async getRecentApplications(limit = 5) {
     try {
       const response = await apiClient.get(`/applications/user?limit=${limit}&sortBy=appliedAt&sortOrder=desc`);
-      return response.data.applications || response.data;
+      const applications = response.data.applications || response.data;
+      // Ensure we always return an array
+      return Array.isArray(applications) ? applications : [];
     } catch (error) {
       console.error('Error fetching recent applications:', error);
       return [];
@@ -116,13 +118,16 @@ class DashboardService {
   async getRecommendedJobs(limit = 6) {
     try {
       const response = await apiClient.get(`/jobs/user/recommended?limit=${limit}`);
-      return response.data.jobs || response.data;
+      const jobs = response.data.jobs || response.data;
+      // Ensure we always return an array
+      return Array.isArray(jobs) ? jobs : [];
     } catch (error) {
       console.error('Error fetching recommended jobs:', error);
       // Fallback to featured jobs
       try {
-        const fallbackResponse = await apiClient.get(`/api/public/jobs/featured?limit=${limit}`);
-        return fallbackResponse.data.data || [];
+        const fallbackResponse = await apiClient.get(`/public/jobs/featured?limit=${limit}`);
+        const fallbackJobs = fallbackResponse.data.data || [];
+        return Array.isArray(fallbackJobs) ? fallbackJobs : [];
       } catch (fallbackError) {
         return [];
       }
@@ -133,7 +138,9 @@ class DashboardService {
   async getSavedJobs(limit = 10) {
     try {
       const response = await apiClient.get(`/users/saved-jobs?limit=${limit}`);
-      return response.data.jobs || response.data;
+      const jobs = response.data.jobs || response.data;
+      // Ensure we always return an array
+      return Array.isArray(jobs) ? jobs : [];
     } catch (error) {
       console.error('Error fetching saved jobs:', error);
       return [];
@@ -144,7 +151,9 @@ class DashboardService {
   async getJobAlerts() {
     try {
       const response = await apiClient.get('/users/job-alerts');
-      return response.data.alerts || response.data;
+      const alerts = response.data.alerts || response.data;
+      // Ensure we always return an array
+      return Array.isArray(alerts) ? alerts : [];
     } catch (error) {
       console.error('Error fetching job alerts:', error);
       return [];
