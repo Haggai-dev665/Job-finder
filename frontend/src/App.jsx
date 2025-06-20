@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useContext, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { JobProvider } from './contexts/JobContext';
 import { ThemeProvider, ThemeContext } from './contexts/ThemeContext';
@@ -18,7 +18,24 @@ import PostJob from './pages/PostJob';
 import Settings from './pages/Settings';
 import Footer from './components/Footer';
 import Dashboard from './pages/Dashboard';
+import CompanyDashboard from './pages/CompanyDashboard';
 import DashboardLayout from './layouts/DashboardLayout';
+
+// Component to scroll to top on route change
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    // Scroll to top immediately when route changes
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'instant'
+    });
+  }, [pathname]);
+
+  return null;
+}
 
 function App() {
   return (
@@ -26,6 +43,7 @@ function App() {
       <AuthProvider>
         <JobProvider>
           <Router>
+            <ScrollToTop />
             <Main />
           </Router>
         </JobProvider>
@@ -45,6 +63,16 @@ function Main() {
         element={
           <DashboardLayout>
             <Dashboard />
+          </DashboardLayout>
+        } 
+      />
+      
+      {/* Company Dashboard route with separate layout */}
+      <Route 
+        path="/company-dashboard" 
+        element={
+          <DashboardLayout>
+            <CompanyDashboard />
           </DashboardLayout>
         } 
       />

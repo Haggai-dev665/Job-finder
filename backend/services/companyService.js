@@ -530,6 +530,241 @@ class CompanyService {
       throw new Error(`Failed to fetch followed companies: ${error.message}`);
     }
   }
+
+  // Get company dashboard overview
+  async getCompanyDashboardOverview(companyId) {
+    try {
+      const [
+        company,
+        jobStats,
+        applicationStats,
+        recentApplications,
+        topPerformingJobs,
+        analyticsData
+      ] = await Promise.all([
+        this.getCompanyById(companyId),
+        this.getCompanyJobStats(companyId),
+        this.getCompanyApplicationStats(companyId),
+        this.getRecentApplications(companyId),
+        this.getTopPerformingJobs(companyId),
+        this.getCompanyAnalytics(companyId)
+      ]);
+
+      return {
+        company,
+        jobStats,
+        applicationStats,
+        recentApplications,
+        topPerformingJobs,
+        analytics: analyticsData
+      };
+    } catch (error) {
+      throw new Error(`Failed to get company dashboard overview: ${error.message}`);
+    }
+  }
+
+  // Get company job statistics
+  async getCompanyJobStats(companyId) {
+    try {
+      const totalJobs = await Job.countDocuments({ company: companyId });
+      const activeJobs = await Job.countDocuments({ 
+        company: companyId, 
+        status: 'active' 
+      });
+      const draftJobs = await Job.countDocuments({ 
+        company: companyId, 
+        status: 'draft' 
+      });
+      const closedJobs = await Job.countDocuments({ 
+        company: companyId, 
+        status: 'closed' 
+      });
+
+      return {
+        totalJobs,
+        activeJobs,
+        draftJobs,
+        closedJobs
+      };
+    } catch (error) {
+      throw new Error(`Failed to get company job stats: ${error.message}`);
+    }
+  }
+
+  // Get company application statistics
+  async getCompanyApplicationStats(companyId) {
+    try {
+      const Application = require('../models/Application');
+      
+      const totalApplications = await Application.countDocuments({
+        'job.company': companyId
+      });
+      
+      const pendingApplications = await Application.countDocuments({
+        'job.company': companyId,
+        status: 'pending'
+      });
+      
+      const reviewedApplications = await Application.countDocuments({
+        'job.company': companyId,
+        status: 'reviewed'
+      });
+      
+      const interviewApplications = await Application.countDocuments({
+        'job.company': companyId,
+        status: 'interview_scheduled'
+      });
+      
+      const hiredApplications = await Application.countDocuments({
+        'job.company': companyId,
+        status: 'hired'
+      });
+
+      return {
+        totalApplications,
+        pendingApplications,
+        reviewedApplications,
+        interviewApplications,
+        hiredApplications
+      };
+    } catch (error) {
+      throw new Error(`Failed to get company application stats: ${error.message}`);
+    }
+  }
+
+  // Get recent applications for company
+  async getRecentApplications(companyId, limit = 10) {
+    try {
+      const Application = require('../models/Application');
+      
+      const applications = await Application.find({
+        'job.company': companyId
+      })
+      .populate('userId', 'firstName lastName email profile.avatar')
+      .populate('jobId', 'title location salary')
+      .sort({ appliedAt: -1 })
+      .limit(limit);
+
+      return applications;
+    } catch (error) {
+      throw new Error(`Failed to get recent applications: ${error.message}`);
+    }
+  }
+
+  // Get top performing jobs
+  async getTopPerformingJobs(companyId, limit = 5) {
+    try {
+      const Application = require('../models/Application');
+      
+      const jobPerformance = await Application.aggregate([
+        {
+          $match: { 'job.company': companyId }
+        },
+        {
+          $group: {
+            _id: '$jobId',
+            applicationCount: { $sum: 1 },
+            hiredCount: {
+              $sum: { $cond: [{ $eq: ['$status', 'hired'] }, 1, 0] }
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: 'jobs',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'job'
+          }
+        },
+        {
+          $unwind: '$job'
+        },
+        {
+          $sort: { applicationCount: -1 }
+        },
+        {
+          $limit: limit
+        }
+      ]);
+
+      return jobPerformance;
+    } catch (error) {
+      throw new Error(`Failed to get top performing jobs: ${error.message}`);
+    }
+  }
+
+  // Get company analytics data
+  async getCompanyAnalytics(companyId) {
+    try {
+      const Application = require('../models/Application');
+      
+      // Get applications trend over last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const applicationsTrend = await Application.aggregate([
+        {
+          $match: {
+            'job.company': companyId,
+            appliedAt: { $gte: thirtyDaysAgo }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$appliedAt' }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $sort: { '_id': 1 }
+        }
+      ]);
+
+      // Get job views trend (if you have a JobView model)
+      const jobViewsTrend = await Job.aggregate([
+        {
+          $match: { 
+            company: companyId,
+            createdAt: { $gte: thirtyDaysAgo }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+            },
+            views: { $sum: '$statistics.views' }
+          }
+        },
+        {
+          $sort: { '_id': 1 }
+        }
+      ]);
+
+      return {
+        applicationsTrend,
+        jobViewsTrend
+      };
+    } catch (error) {
+      throw new Error(`Failed to get company analytics: ${error.message}`);
+    }
+  }
+
+  // Get company employees (for dashboard)
+  async getCompanyEmployees(companyId) {
+    try {
+      const company = await Company.findById(companyId)
+        .populate('employees.userId', 'firstName lastName email profile.avatar')
+        .select('employees');
+
+      return company.employees;
+    } catch (error) {
+      throw new Error(`Failed to get company employees: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new CompanyService();

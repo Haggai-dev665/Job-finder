@@ -15,7 +15,17 @@ class UserService {
       role = 'candidate',
       location,
       company,
-      preferences
+      preferences,
+      // Company registration fields
+      name,
+      industry,
+      size,
+      description,
+      website,
+      headquarters,
+      culture,
+      contactInfo,
+      type
     } = userData;
 
     // Check if user already exists
@@ -47,47 +57,91 @@ class UserService {
       };
     }
 
+    // Create user data object based on role
+    const isEmployer = type === 'company' || role === 'employer';
+    
+    // For employers, don't include job search preferences
+    const userPreferences = isEmployer ? {
+      // Only include employer-relevant preferences
+      notifications: preferences?.notifications || {
+        email: true,
+        jobAlerts: false,
+        companyUpdates: true
+      }
+    } : {
+      // For candidates, include all job search preferences
+      jobSearchStatus: preferences?.jobSearchStatus || 'open-to-offers',
+      jobTypes: preferences?.jobTypes || [],
+      desiredSalary: preferences?.desiredSalary ? Number(preferences.desiredSalary) : undefined,
+      salaryPeriod: preferences?.salaryPeriod || 'yearly',
+      rolesLookingFor: preferences?.rolesLookingFor || [],
+      jobType: preferences?.jobType || 'full-time',
+      salaryRange: preferences?.salaryRange || {},
+      location: {
+        country: userLocationObj.country,
+        state: userLocationObj.state,
+        city: userLocationObj.city,
+        remote: preferences?.location?.remote || false
+      },
+      industries: preferences?.industries || [],
+      notifications: preferences?.notifications || {
+        email: true,
+        jobAlerts: true,
+        companyUpdates: true
+      }
+    };
+
     // Create user with all frontend fields
     const user = await User.create({
-      firstName,
-      lastName,
+      firstName: firstName || name?.split(' ')[0] || '',
+      lastName: lastName || name?.split(' ').slice(1).join(' ') || '',
       email,
       password,
-      role,
+      role: isEmployer ? 'employer' : role,
       company,
       // Updated location handling
       userLocation: userLocationObj,
       // New fields from frontend - moved from preferences
-      currentRole: preferences?.currentRole || '',
+      currentRole: isEmployer ? 'Company Admin' : (preferences?.currentRole || ''),
       experienceYears: preferences?.experienceYears || '',
       isStudent: preferences?.isStudent || false,
-      currentCompany: preferences?.currentCompany || '',
+      currentCompany: isEmployer ? (name || '') : (preferences?.currentCompany || ''),
       skills: preferences?.skills || [],
       frontendSkills: preferences?.frontendSkills || [],
-      preferences: {
-        // Frontend fields
-        jobSearchStatus: preferences?.jobSearchStatus || '',
-        jobTypes: preferences?.jobTypes || [],
-        desiredSalary: preferences?.desiredSalary ? Number(preferences.desiredSalary) : undefined,
-        salaryPeriod: preferences?.salaryPeriod || 'yearly',
-        rolesLookingFor: preferences?.rolesLookingFor || [],
-        // Existing fields
-        jobType: preferences?.jobType || 'full-time',
-        salaryRange: preferences?.salaryRange || {},
-        location: {
-          country: userLocationObj.country,
-          state: userLocationObj.state,
-          city: userLocationObj.city,
-          remote: preferences?.location?.remote || false
-        },
-        industries: preferences?.industries || [],
-        notifications: preferences?.notifications || {
-          email: true,
-          jobAlerts: true,
-          companyUpdates: true
-        }
-      }
+      preferences: userPreferences
     });
+
+    let createdCompany = null;
+
+    // If this is a company registration, create the company
+    if (type === 'company' && companyData) {
+      const companyService = require('./companyService');
+      
+      try {
+        // Use the companyData from frontend
+        const finalCompanyData = {
+          name: companyData.name || name,
+          description: companyData.description || `${companyData.name || name} is a ${companyData.industry || industry} company.`,
+          industry: companyData.industry || industry?.toLowerCase(),
+          size: companyData.size || size,
+          website: companyData.website || website,
+          founded: companyData.founded,
+          headquarters: companyData.headquarters || headquarters || {},
+          locations: companyData.locations || [],
+          culture: companyData.culture || culture || {},
+          contactInfo: companyData.contactInfo || contactInfo || {}
+        };
+
+        createdCompany = await companyService.createCompany(finalCompanyData, user._id);
+        
+        // Update user with company ID
+        user.company = createdCompany._id;
+        await user.save();
+      } catch (error) {
+        console.error('Error creating company:', error);
+        // Don't throw error, just log it - user registration should still succeed
+      }
+    }
 
     // Generate tokens
     const tokens = JWTConfig.generateTokens({ userId: user._id, role: user.role });
@@ -113,7 +167,8 @@ class UserService {
 
     return {
       user,
-      tokens
+      tokens,
+      company: createdCompany
     };
   }
 

@@ -66,10 +66,22 @@ const Navbar = () => {
   ];
 
   const userNavigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: Briefcase },
+    // Different dashboard based on user role
+    ...(user?.role === 'employer' || user?.role === 'company' 
+      ? [{ name: 'Company Dashboard', href: '/company-dashboard', icon: Briefcase }]
+      : [{ name: 'Dashboard', href: '/dashboard', icon: Briefcase }]
+    ),
     { name: 'Profile', href: '/profile', icon: User },
-    { name: 'Saved Jobs', href: '/saved-jobs', icon: Heart },
-    { name: 'Applications', href: '/applications', icon: FileText },
+    ...(user?.role === 'employer' || user?.role === 'company'
+      ? [
+          { name: 'Post Jobs', href: '/post-job', icon: PlusCircle },
+          { name: 'Applications', href: '/company/applications', icon: FileText }
+        ]
+      : [
+          { name: 'Saved Jobs', href: '/saved-jobs', icon: Heart },
+          { name: 'Applications', href: '/applications', icon: FileText }
+        ]
+    ),
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

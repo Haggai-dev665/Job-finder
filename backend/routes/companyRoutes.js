@@ -38,4 +38,12 @@ router.delete('/:id/employees/:employeeId', companyController.removeEmployee);
 // File upload routes
 router.post('/:id/logo', uploadCompanyLogo, companyController.uploadCompanyLogo);
 
+// Company dashboard routes (for company employees)
+router.get('/:id/dashboard', companyController.getCompanyDashboard);
+router.get('/:id/dashboard/job-stats', companyController.getCompanyJobStats);
+router.get('/:id/dashboard/application-stats', companyController.getCompanyApplicationStats);
+router.get('/:id/dashboard/recent-applications', companyController.getCompanyRecentApplications);
+router.get('/:id/dashboard/analytics', companyController.getCompanyAnalytics);
+router.get('/:id/dashboard/employees', companyController.getCompanyEmployees);
+
 module.exports = router;

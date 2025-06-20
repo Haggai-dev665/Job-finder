@@ -88,6 +88,29 @@ const CompanyRegistration = () => {
     'Real Estate', 'Hospitality', 'Agriculture', 'Government', 'Non-profit', 'Other'
   ];
 
+  // Map frontend industry names to backend enum values
+  const getBackendIndustry = (frontendIndustry) => {
+    const mapping = {
+      'Technology': 'technology',
+      'Healthcare': 'healthcare',
+      'Finance': 'finance',
+      'Education': 'education',
+      'Retail': 'retail',
+      'Manufacturing': 'manufacturing',
+      'Consulting': 'consulting',
+      'Media': 'media',
+      'Transportation': 'transportation',
+      'Energy': 'energy',
+      'Real Estate': 'real-estate',
+      'Hospitality': 'hospitality',
+      'Agriculture': 'agriculture',
+      'Government': 'government',
+      'Non-profit': 'non-profit',
+      'Other': 'other'
+    };
+    return mapping[frontendIndustry] || 'other';
+  };
+
   const companySizes = [
     '1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5000+'
   ];
@@ -187,13 +210,57 @@ const CompanyRegistration = () => {
     setLoading(true);
     
     try {
+      // Prepare user data for registration
+      const userData = {
+        firstName: formData.name.split(' ')[0] || formData.name,
+        lastName: formData.name.split(' ').slice(1).join(' ') || '',
+        email: formData.email,
+        password: formData.password,
+        role: 'employer'
+      };
+
+      // Prepare company data
       const companyData = {
-        ...formData,
-        role: 'employer',
+        name: formData.name,
+        description: formData.description || `${formData.name} is a growing ${formData.industry.toLowerCase()} company.`,
+        industry: getBackendIndustry(formData.industry), // Use proper mapping
+        size: formData.size,
+        website: formData.website,
+        founded: formData.founded ? parseInt(formData.founded) : undefined,
+        headquarters: {
+          address: formData.headquarters.address || '',
+          city: formData.headquarters.city || '',
+          state: formData.headquarters.state || '',
+          country: formData.headquarters.country || '',
+          zipCode: formData.headquarters.zipCode || ''
+        },
+        locations: formData.locations || [],
+        culture: {
+          values: formData.culture.values || [],
+          mission: formData.culture.mission || '',
+          vision: formData.culture.vision || '',
+          workEnvironment: formData.culture.workEnvironment?.toLowerCase(),
+          benefits: formData.culture.benefits || [],
+          perks: formData.culture.perks || []
+        },
+        contactInfo: {
+          email: formData.contactInfo.email || formData.email,
+          phone: formData.contactInfo.phone || '',
+          linkedin: formData.contactInfo.linkedin || '',
+          twitter: formData.contactInfo.twitter || '',
+          facebook: formData.contactInfo.facebook || '',
+          instagram: formData.contactInfo.instagram || ''
+        }
+      };
+
+      // Combine user and company data
+      const registrationData = {
+        ...userData,
+        companyData,
         type: 'company'
       };
       
-      const result = await register(companyData);
+      const result = await register(registrationData);
 
       if (result.success) {
         navigate('/company-dashboard');

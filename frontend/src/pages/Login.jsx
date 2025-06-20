@@ -129,7 +129,13 @@ const Login = () => {
     try {
       const result = await login(formData.email, formData.password);
       if (result.success) {
-        navigate(from, { replace: true });
+        const { user } = result;
+        // Navigate based on user role
+        if (user.role === 'employer' || user.role === 'company') {
+          navigate('/company-dashboard', { replace: true });
+        } else {
+          navigate(from, { replace: true });
+        }
       } else {
         setErrors({ general: result.error || 'Invalid email or password' });
       }
@@ -153,7 +159,13 @@ const Login = () => {
         demoCredentials[userType].password
       );
       if (result.success) {
-        navigate(from, { replace: true });
+        const { user } = result;
+        // Navigate based on user type
+        if (userType === 'employer' || user.role === 'employer' || user.role === 'company') {
+          navigate('/company-dashboard', { replace: true });
+        } else {
+          navigate(from, { replace: true });
+        }
       } else {
         setErrors({ general: result.error || 'Demo login failed. Please try again.' });
       }

@@ -99,16 +99,22 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.register(userData);
       
       if (response.status === 'success') {
-        const { user: newUser, tokens } = response.data;
+        const { user: newUser, tokens, company } = response.data;
         
         // Store tokens and user data
         localStorage.setItem('accessToken', tokens.accessToken);
         localStorage.setItem('refreshToken', tokens.refreshToken);
         localStorage.setItem('user', JSON.stringify(newUser));
         
+        // Store company data if this is a company registration
+        if (company) {
+          localStorage.setItem('company', JSON.stringify(company));
+          newUser.companyId = company._id;
+        }
+        
         setUser(newUser);
         setIsAuthenticated(true);
-        return { success: true, user: newUser };
+        return { success: true, user: newUser, company };
       } else {
         throw new Error(response.message || 'Registration failed');
       }

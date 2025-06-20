@@ -240,6 +240,55 @@ class CompanyController {
       company 
     });
   });
+
+  // Get company dashboard overview
+  getCompanyDashboard = asyncHandler(async (req, res) => {
+    const companyId = req.params.id;
+    const dashboardData = await companyService.getCompanyDashboardOverview(companyId);
+    
+    sendResponse(res, 'Company dashboard data fetched successfully', dashboardData);
+  });
+
+  // Get company job statistics
+  getCompanyJobStats = asyncHandler(async (req, res) => {
+    const companyId = req.params.id;
+    const jobStats = await companyService.getCompanyJobStats(companyId);
+    
+    sendResponse(res, 'Company job statistics fetched successfully', jobStats);
+  });
+
+  // Get company application statistics
+  getCompanyApplicationStats = asyncHandler(async (req, res) => {
+    const companyId = req.params.id;
+    const applicationStats = await companyService.getCompanyApplicationStats(companyId);
+    
+    sendResponse(res, 'Company application statistics fetched successfully', applicationStats);
+  });
+
+  // Get company recent applications
+  getCompanyRecentApplications = asyncHandler(async (req, res) => {
+    const companyId = req.params.id;
+    const limit = req.query.limit || 10;
+    const recentApplications = await companyService.getRecentApplications(companyId, limit);
+    
+    sendResponse(res, 'Recent applications fetched successfully', recentApplications);
+  });
+
+  // Get company analytics
+  getCompanyAnalytics = asyncHandler(async (req, res) => {
+    const companyId = req.params.id;
+    const analytics = await companyService.getCompanyAnalytics(companyId);
+    
+    sendResponse(res, 'Company analytics fetched successfully', analytics);
+  });
+
+  // Get company employees
+  getCompanyEmployees = asyncHandler(async (req, res) => {
+    const companyId = req.params.id;
+    const employees = await companyService.getCompanyEmployees(companyId);
+    
+    sendResponse(res, 'Company employees fetched successfully', employees);
+  });
 }
 
 module.exports = new CompanyController();
