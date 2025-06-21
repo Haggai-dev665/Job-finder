@@ -25,7 +25,9 @@ class UserService {
       headquarters,
       culture,
       contactInfo,
-      type
+      type,
+      companyData,
+      userLocation
     } = userData;
 
     // Check if user already exists
@@ -175,7 +177,7 @@ class UserService {
   // Login user
   async loginUser(email, password) {
     // Find user and include password for comparison
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select('+password').populate('company');
     
     if (!user || !(await user.comparePassword(password))) {
       throw new Error('Invalid email or password');
@@ -196,9 +198,21 @@ class UserService {
     // Remove password from response
     user.password = undefined;
 
+    // If user is an employer and has a company, include company data
+    let companyData = null;
+    if (user.role === 'employer' && user.company) {
+      try {
+        const Company = require('../models/Company');
+        companyData = await Company.findById(user.company);
+      } catch (error) {
+        console.error('Error fetching company data:', error);
+      }
+    }
+
     return {
       user,
-      tokens
+      tokens,
+      company: companyData
     };
   }
 

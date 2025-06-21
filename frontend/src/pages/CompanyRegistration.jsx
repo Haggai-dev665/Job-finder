@@ -31,6 +31,8 @@ const CompanyRegistration = () => {
   const [formData, setFormData] = useState({
     // Step 1 - Basic Company Info
     name: '',
+    adminFirstName: '',
+    adminLastName: '',
     email: '',
     password: '',
     website: '',
@@ -210,28 +212,70 @@ const CompanyRegistration = () => {
     setLoading(true);
     
     try {
+      // Validate required fields with specific messages
+      if (!formData.name) {
+        throw new Error('Company name is required');
+      }
+      if (!formData.adminFirstName) {
+        throw new Error('Your first name is required');
+      }
+      if (!formData.adminLastName) {
+        throw new Error('Your last name is required');
+      }
+      if (!formData.email) {
+        throw new Error('Email is required');
+      }
+      if (!formData.password) {
+        throw new Error('Password is required');
+      }
+      if (!formData.industry) {
+        throw new Error('Industry is required');
+      }
+      if (!formData.size) {
+        throw new Error('Company size is required');
+      }
+      if (formData.password.length < 8) {
+        throw new Error('Password must be at least 8 characters');
+      }
+
+      if (!formData.headquarters.city || !formData.headquarters.country) {
+        throw new Error('Please provide headquarters location');
+      }
+
+      console.log('Form data before processing:', formData);
+      
+      // Validate that we have admin names
+      if (!formData.adminFirstName?.trim()) {
+        throw new Error('Your first name is required');
+      }
+      if (!formData.adminLastName?.trim()) {
+        throw new Error('Your last name is required');
+      }
+      
       // Prepare user data for registration
       const userData = {
-        firstName: formData.name.split(' ')[0] || formData.name,
-        lastName: formData.name.split(' ').slice(1).join(' ') || '',
+        firstName: formData.adminFirstName.trim(),
+        lastName: formData.adminLastName.trim(),
         email: formData.email,
         password: formData.password,
         role: 'employer'
       };
 
-      // Prepare company data
+      console.log('User data prepared:', userData);
+
+      // Prepare company data with all required fields
       const companyData = {
         name: formData.name,
-        description: formData.description || `${formData.name} is a growing ${formData.industry.toLowerCase()} company.`,
-        industry: getBackendIndustry(formData.industry), // Use proper mapping
+        description: formData.description || `${formData.name} is a ${formData.industry.toLowerCase()} company committed to excellence and innovation.`,
+        industry: getBackendIndustry(formData.industry),
         size: formData.size,
-        website: formData.website,
+        website: formData.website || '',
         founded: formData.founded ? parseInt(formData.founded) : undefined,
         headquarters: {
           address: formData.headquarters.address || '',
-          city: formData.headquarters.city || '',
+          city: formData.headquarters.city,
           state: formData.headquarters.state || '',
-          country: formData.headquarters.country || '',
+          country: formData.headquarters.country,
           zipCode: formData.headquarters.zipCode || ''
         },
         locations: formData.locations || [],
@@ -239,7 +283,7 @@ const CompanyRegistration = () => {
           values: formData.culture.values || [],
           mission: formData.culture.mission || '',
           vision: formData.culture.vision || '',
-          workEnvironment: formData.culture.workEnvironment?.toLowerCase(),
+          workEnvironment: formData.culture.workEnvironment || 'hybrid',
           benefits: formData.culture.benefits || [],
           perks: formData.culture.perks || []
         },
@@ -259,16 +303,23 @@ const CompanyRegistration = () => {
         companyData,
         type: 'company'
       };
+
+      console.log('Submitting registration data:', registrationData);
       
       const result = await register(registrationData);
+      console.log('Registration result:', result);
 
       if (result.success) {
-        navigate('/company-dashboard');
+        // Small delay to ensure data is saved
+        setTimeout(() => {
+          navigate('/company-dashboard');
+        }, 500);
       } else {
-        setError(result.error || 'Registration failed');
+        setError(result.error || 'Registration failed. Please try again.');
       }
     } catch (err) {
-      setError('Registration failed. Please try again.');
+      console.error('Registration error:', err);
+      setError(err.message || 'Registration failed. Please try again.');
     }
     
     setLoading(false);
@@ -277,9 +328,18 @@ const CompanyRegistration = () => {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return formData.name && formData.email && formData.password && formData.industry && formData.size;
+        return formData.name && 
+               formData.adminFirstName &&
+               formData.adminLastName &&
+               formData.email && 
+               formData.password && 
+               formData.industry && 
+               formData.size &&
+               formData.password.length >= 8;
       case 2:
-        return formData.headquarters.city && formData.headquarters.country && formData.culture.workEnvironment;
+        return formData.headquarters.city && 
+               formData.headquarters.country && 
+               formData.culture.workEnvironment;
       case 3:
         return true; // Optional step
       default:
@@ -340,8 +400,11 @@ const CompanyRegistration = () => {
             {/* Form Fields */}
             <div className="space-y-6">
               {error && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm animate-shake">
-                  {error}
+                <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-xl text-red-700 text-sm animate-shake">
+                  <div className="flex items-center">
+                    <X className="w-5 h-5 mr-2" />
+                    {error}
+                  </div>
                 </div>
               )}
 
@@ -388,6 +451,38 @@ const CompanyRegistration = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="group">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Your First Name *
+                    <span className="text-xs text-gray-500 font-normal ml-1">(Admin account)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="adminFirstName"
+                    value={formData.adminFirstName}
+                    onChange={handleChange}
+                    placeholder="John"
+                    className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 bg-white text-gray-900 placeholder-gray-500 transition-all duration-300"
+                  />
+                </div>
+
+                <div className="group">
+                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    Your Last Name *
+                    <span className="text-xs text-gray-500 font-normal ml-1">(Admin account)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="adminLastName"
+                    value={formData.adminLastName}
+                    onChange={handleChange}
+                    placeholder="Smith"
+                    className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 bg-white text-gray-900 placeholder-gray-500 transition-all duration-300"
+                  />
+                </div>
+              </div>
+
               <div className="group">
                 <label className="block text-sm font-semibold text-gray-900 mb-2">
                   Password *
@@ -409,6 +504,13 @@ const CompanyRegistration = () => {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
+                {formData.password && (
+                  <div className="mt-2">
+                    <div className={`text-xs ${formData.password.length >= 8 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formData.password.length >= 8 ? '✓ Password meets minimum requirements' : '⚠ Password must be at least 8 characters'}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="group">
@@ -441,7 +543,7 @@ const CompanyRegistration = () => {
                   >
                     <option value="">Select industry</option>
                     {industries.map((industry) => (
-                      <option key={industry} value={industry.toLowerCase()}>{industry}</option>
+                      <option key={industry} value={industry}>{industry}</option>
                     ))}
                   </select>
                 </div>
@@ -722,24 +824,59 @@ const CompanyRegistration = () => {
                   <Camera className="w-5 h-5 text-green-600 mr-2" />
                   Company Logo
                 </h3>
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-green-500 transition-colors duration-300">
-                  <Camera className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-2">Upload your company logo</p>
-                  <p className="text-sm text-gray-500">PNG, JPG up to 5MB</p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    id="logo-upload"
-                    onChange={(e) => setFormData(prev => ({ ...prev, logo: e.target.files[0] }))}
-                  />
-                  <label
-                    htmlFor="logo-upload"
-                    className="mt-4 inline-block px-6 py-2 bg-green-600 text-white rounded-lg cursor-pointer hover:bg-green-700 transition-colors duration-300"
-                  >
-                    Choose File
-                  </label>
-                </div>
+                
+                {formData.logo ? (
+                  <div className="text-center">
+                    <div className="relative inline-block">
+                      <img
+                        src={URL.createObjectURL(formData.logo)}
+                        alt="Company Logo Preview"
+                        className="w-32 h-32 object-cover rounded-xl border-2 border-gray-200 shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, logo: null }))}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors duration-200"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">{formData.logo.name}</p>
+                    <label
+                      htmlFor="logo-upload"
+                      className="mt-4 inline-block px-6 py-2 bg-green-600 text-white rounded-lg cursor-pointer hover:bg-green-700 transition-colors duration-300"
+                    >
+                      Change Logo
+                    </label>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-green-500 transition-colors duration-300">
+                    <Camera className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 mb-2">Upload your company logo</p>
+                    <p className="text-sm text-gray-500 mb-4">PNG, JPG up to 5MB</p>
+                    <label
+                      htmlFor="logo-upload"
+                      className="inline-block px-6 py-2 bg-green-600 text-white rounded-lg cursor-pointer hover:bg-green-700 transition-colors duration-300"
+                    >
+                      Choose File
+                    </label>
+                  </div>
+                )}
+                
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  id="logo-upload"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file && file.size <= 5 * 1024 * 1024) { // 5MB limit
+                      setFormData(prev => ({ ...prev, logo: file }));
+                    } else if (file) {
+                      alert('File size must be less than 5MB');
+                    }
+                  }}
+                />
               </div>
 
               {/* Company Tags */}
@@ -874,7 +1011,7 @@ const CompanyRegistration = () => {
               ) : (
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !canProceed()}
                   className="ml-auto bg-gradient-to-r from-green-600 to-teal-600 text-white py-4 px-8 rounded-xl font-bold hover:from-green-700 hover:to-teal-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center group transform hover:scale-105 hover:shadow-xl"
                 >
                   {loading ? (
@@ -885,7 +1022,7 @@ const CompanyRegistration = () => {
                   ) : (
                     <>
                       Create Company
-                      <Check className="w-5 h-5 ml-3" />
+                      <Check className="w-5 h-5 ml-3 group-hover:scale-110 transition-transform duration-200" />
                     </>
                   )}
                 </button>

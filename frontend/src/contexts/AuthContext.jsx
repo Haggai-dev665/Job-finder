@@ -26,6 +26,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = localStorage.getItem('accessToken');
       const storedUser = localStorage.getItem('user');
+      const storedCompany = localStorage.getItem('company');
       
       if (token && storedUser) {
         try {
@@ -34,12 +35,23 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
           setIsAuthenticated(true);
           
+          // If there's stored company data, ensure it's available
+          if (storedCompany && userData.role === 'employer') {
+            const companyData = JSON.parse(storedCompany);
+            userData.companyId = companyData._id;
+          }
+          
           // Then verify token is still valid by fetching user profile
           const response = await authAPI.getProfile();
           if (response.status === 'success') {
             // Update with fresh data from server
-            setUser(response.data);
-            localStorage.setItem('user', JSON.stringify(response.data));
+            const freshUserData = response.data;
+            if (storedCompany && freshUserData.role === 'employer') {
+              const companyData = JSON.parse(storedCompany);
+              freshUserData.companyId = companyData._id;
+            }
+            setUser(freshUserData);
+            localStorage.setItem('user', JSON.stringify(freshUserData));
           }
         } catch (apiError) {
           // If API call fails but we have stored user data, keep user logged in
@@ -62,8 +74,17 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('company'); // Also clear company data
     setUser(null);
     setIsAuthenticated(false);
+  };
+
+  // Utility function to get the correct dashboard route for a user
+  const getDashboardRoute = (user) => {
+    if (user?.role === 'employer' || user?.role === 'company') {
+      return '/company-dashboard';
+    }
+    return '/dashboard';
   };
 
   const login = async (email, password) => {
@@ -72,16 +93,22 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.login({ email, password });
       
       if (response.status === 'success') {
-        const { user: userData, tokens } = response.data;
+        const { user: userData, tokens, company } = response.data;
         
         // Store tokens and user data
         localStorage.setItem('accessToken', tokens.accessToken);
         localStorage.setItem('refreshToken', tokens.refreshToken);
         localStorage.setItem('user', JSON.stringify(userData));
         
+        // Store company data if this user is an employer with a company
+        if (company) {
+          localStorage.setItem('company', JSON.stringify(company));
+          userData.companyId = company._id;
+        }
+        
         setUser(userData);
         setIsAuthenticated(true);
-        return { success: true, user: userData };
+        return { success: true, user: userData, company };
       } else {
         throw new Error(response.message || 'Login failed');
       }
@@ -215,7 +242,8 @@ export const AuthProvider = ({ children }) => {
     updateUser,
     changePassword,
     uploadAvatar,
-    uploadResume
+    uploadResume,
+    getDashboardRoute
   };
 
   return (
