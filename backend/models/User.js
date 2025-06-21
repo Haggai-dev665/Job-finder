@@ -115,6 +115,12 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  // Reference to Company for employers
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    default: null
+  },
   // User location (separate from preferences location)
   userLocation: {
     country: {

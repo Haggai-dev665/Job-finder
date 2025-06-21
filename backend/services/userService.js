@@ -177,7 +177,7 @@ class UserService {
   // Login user
   async loginUser(email, password) {
     // Find user and include password for comparison
-    const user = await User.findOne({ email }).select('+password').populate('company');
+    const user = await User.findOne({ email }).select('+password');
     
     if (!user || !(await user.comparePassword(password))) {
       throw new Error('Invalid email or password');
@@ -198,14 +198,21 @@ class UserService {
     // Remove password from response
     user.password = undefined;
 
-    // If user is an employer and has a company, include company data
+    // If user is an employer and has a company, populate and include company data
     let companyData = null;
     if (user.role === 'employer' && user.company) {
       try {
-        const Company = require('../models/Company');
-        companyData = await Company.findById(user.company);
+        const populatedUser = await User.findById(user._id).populate('company');
+        companyData = populatedUser.company;
       } catch (error) {
         console.error('Error fetching company data:', error);
+        // Try alternative method
+        try {
+          const Company = require('../models/Company');
+          companyData = await Company.findById(user.company);
+        } catch (companyError) {
+          console.error('Error fetching company data (alternative method):', companyError);
+        }
       }
     }
 

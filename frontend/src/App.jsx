@@ -24,6 +24,7 @@ import Footer from './components/Footer';
 import Dashboard from './pages/Dashboard';
 import CompanyDashboard from './pages/CompanyDashboard';
 import DashboardLayout from './layouts/DashboardLayout';
+import CompanyDashboardLayout from './layouts/CompanyDashboardLayout';
 
 // Component to scroll to top on route change
 function ScrollToTop() {
@@ -112,9 +113,9 @@ function Main() {
       <Route 
         path="/company-dashboard" 
         element={
-          <DashboardLayout>
+          <CompanyDashboardLayout>
             <CompanyDashboard />
-          </DashboardLayout>
+          </CompanyDashboardLayout>
         } 
       />
       

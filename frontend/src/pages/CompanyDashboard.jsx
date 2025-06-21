@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2,
   Users,
@@ -53,16 +53,56 @@ import {
   UserPlus,
   Clock4,
   CalendarDays,
-  BookOpen
+  BookOpen,
+  X,
+  Save,
+  Tag,
+  Trash2,
+  Copy,
+  ExternalLink,
+  Camera
 } from 'lucide-react';
 import companyDashboardService from '../services/companyDashboardService';
+import { jobsAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const CompanyDashboard = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showJobModal, setShowJobModal] = useState(false);
+  const [jobFormData, setJobFormData] = useState({
+    title: '',
+    description: '',
+    requirements: [''],
+    benefits: [''],
+    salary: {
+      min: '',
+      max: '',
+      currency: 'USD',
+      period: 'yearly'
+    },
+    location: {
+      city: '',
+      state: '',
+      country: '',
+      remote: false,
+      hybrid: false
+    },
+    type: 'Full-time',
+    experience: 'Mid-level',
+    category: 'Technology',
+    skills: [''],
+    urgent: false,
+    featured: false,
+    imageUrl: ''
+  });
+  const [creatingJob, setCreatingJob] = useState(false);
+  const [companyJobs, setCompanyJobs] = useState([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Get company data from localStorage and user
   const getCompanyData = () => {
@@ -78,15 +118,38 @@ const CompanyDashboard = () => {
   };
 
   const companyData = getCompanyData();
+  const company = companyData || user?.company || {};
   const companyId = companyData?._id || user?.companyId || user?.company?._id || user?.company;
 
   useEffect(() => {
     if (companyId) {
       fetchDashboardData();
+      fetchCompanyJobs();
     } else {
       setLoading(false);
     }
   }, [companyId]);
+
+  // Handle URL parameters for tab navigation
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    } else {
+      // If no tab is specified, default to overview and update URL
+      setActiveTab('overview');
+      navigate('/company-dashboard?tab=overview', { replace: true });
+    }
+  }, [location.search, navigate]);
+
+  // Function to change tab and update URL
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    const searchParams = new URLSearchParams();
+    searchParams.set('tab', tabId);
+    navigate(`/company-dashboard?${searchParams.toString()}`, { replace: true });
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -100,6 +163,19 @@ const CompanyDashboard = () => {
     }
   };
 
+  const fetchCompanyJobs = async () => {
+    try {
+      setLoading(true);
+      const response = await jobsAPI.get(`/jobs/company/${companyId}`);
+      setCompanyJobs(response.data.jobs || response.data);
+    } catch (error) {
+      console.error('Error fetching company jobs:', error);
+      setCompanyJobs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleApplicationStatusUpdate = async (applicationId, newStatus) => {
     try {
       await companyDashboardService.updateApplicationStatus(applicationId, newStatus);
@@ -107,6 +183,154 @@ const CompanyDashboard = () => {
       fetchDashboardData();
     } catch (error) {
       console.error('Error updating application status:', error);
+    }
+  };
+
+  const handleJobFormChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setJobFormData((prevData) => ({
+      ...prevData,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB');
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      
+      // Create form data for Cloudinary upload
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', 'job_images'); // You'll need to create this preset in Cloudinary
+      formData.append('cloud_name', import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'your_cloud_name');
+
+      // Upload to Cloudinary
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.secure_url) {
+        setJobFormData(prev => ({
+          ...prev,
+          imageUrl: data.secure_url
+        }));
+        alert('Image uploaded successfully!');
+      } else {
+        throw new Error('Upload failed');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleAddRequirement = () => {
+    setJobFormData((prevData) => ({
+      ...prevData,
+      requirements: [...prevData.requirements, '']
+    }));
+  };
+
+  const handleRemoveRequirement = (index) => {
+    setJobFormData((prevData) => ({
+      ...prevData,
+      requirements: prevData.requirements.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleAddBenefit = () => {
+    setJobFormData((prevData) => ({
+      ...prevData,
+      benefits: [...prevData.benefits, '']
+    }));
+  };
+
+  const handleRemoveBenefit = (index) => {
+    setJobFormData((prevData) => ({
+      ...prevData,
+      benefits: prevData.benefits.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleCreateJob = async () => {
+    if (!jobFormData.title || !jobFormData.description) {
+      alert('Please fill in the required fields: Title and Description');
+      return;
+    }
+
+    try {
+      setCreatingJob(true);
+      const jobData = {
+        ...jobFormData,
+        companyId,
+        // Clean up empty arrays
+        requirements: jobFormData.requirements.filter(req => req.trim()),
+        benefits: jobFormData.benefits.filter(benefit => benefit.trim()),
+        skills: jobFormData.skills.filter(skill => skill.trim())
+      };
+
+      const response = await jobsAPI.post('/jobs', jobData);
+      
+      if (response.status === 'success' || response.data) {
+        alert('Job created successfully!');
+        setShowJobModal(false);
+        setJobFormData({
+          title: '',
+          description: '',
+          requirements: [''],
+          benefits: [''],
+          salary: {
+            min: '',
+            max: '',
+            currency: 'USD',
+            period: 'yearly'
+          },
+          location: {
+            city: '',
+            state: '',
+            country: '',
+            remote: false,
+            hybrid: false
+          },
+          type: 'Full-time',
+          experience: 'Mid-level',
+          category: 'Technology',
+          skills: [''],
+          urgent: false,
+          featured: false,
+          imageUrl: ''
+        });
+        // Refresh jobs
+        fetchCompanyJobs();
+      }
+    } catch (error) {
+      console.error('Error creating job:', error);
+      alert('Failed to create job. Please try again.');
+    } finally {
+      setCreatingJob(false);
     }
   };
 
@@ -141,7 +365,6 @@ const CompanyDashboard = () => {
   }
 
   const {
-    company = companyData || {},
     jobStats = {
       activeJobs: 12,
       draftJobs: 3,
@@ -361,6 +584,8 @@ const CompanyDashboard = () => {
     }
   };
 
+  console.log('CompanyDashboard rendering - activeTab:', activeTab, 'location.search:', location.search);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
       {/* Enhanced Header */}
@@ -430,49 +655,20 @@ const CompanyDashboard = () => {
         </div>
       </div>
 
-      {/* Enhanced Navigation Tabs */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex space-x-8 border-b border-gray-200 bg-white/70 backdrop-blur-sm">
-          {[
-            { id: 'overview', label: 'Overview', icon: BarChart3, badge: null },
-            { id: 'jobs', label: 'Jobs', icon: Briefcase, badge: jobStats.activeJobs || 9 },
-            { id: 'applications', label: 'Applications', icon: FileText, badge: applicationStats.pendingApplications || 42 },
-            { id: 'analytics', label: 'Analytics', icon: TrendingUp, badge: null },
-            { id: 'team', label: 'Team', icon: Users, badge: null },
-            { id: 'insights', label: 'Insights', icon: Lightbulb, badge: '3' }
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative flex items-center px-1 py-4 border-b-2 font-medium text-sm transition-all duration-200 ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Icon className="h-5 w-5 mr-2" />
-                {tab.label}
-                {tab.badge && (
-                  <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Debug Info */}
+        <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded">
+          <p>Debug: Active Tab = {activeTab}</p>
+          <p>Debug: URL Search = {location.search}</p>
+        </div>
+
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Welcome Banner */}
             <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 text-white shadow-xl">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <h2 className="text-3xl font-bold mb-2">Welcome back, {user?.firstName}! 👋</h2>
                   <p className="text-blue-100 text-lg">Here's what's happening with {company.name || 'your company'} today.</p>
                   <div className="flex items-center space-x-6 mt-4">
@@ -488,6 +684,23 @@ const CompanyDashboard = () => {
                       <span className="text-blue-200">Employees:</span>
                       <span className="ml-1 font-semibold">{company.size || '50-100'}</span>
                     </div>
+                  </div>
+                  {/* Quick Actions */}
+                  <div className="flex items-center space-x-4 mt-6">
+                    <button
+                      onClick={() => handleTabChange('create-job')}
+                      className="bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold hover:bg-blue-50 transition-colors shadow-lg flex items-center space-x-2"
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span>Create New Job</span>
+                    </button>
+                    <button
+                      onClick={() => handleTabChange('applications')}
+                      className="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition-colors flex items-center space-x-2"
+                    >
+                      <FileText className="h-5 w-5" />
+                      <span>View Applications</span>
+                    </button>
                   </div>
                 </div>
                 <div className="hidden lg:block">
@@ -1261,483 +1474,511 @@ const CompanyDashboard = () => {
           </div>
         )}
 
-        {/* Enhanced Applications Tab */}
+        {/* Create Job Tab */}
+        {activeTab === 'create-job' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                    <Plus className="h-8 w-8 mr-3 text-blue-600" />
+                    Create New Job Posting
+                  </h2>
+                  <p className="text-gray-600 mt-2">Post a new job to attract top talent to your company</p>
+                </div>
+              </div>
+              
+              {/* Placeholder content for Create Job */}
+              <div className="text-center py-12">
+                <Plus className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Create Job</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Job creation form coming soon. Use the modal for now.
+                </p>
+                <button
+                  onClick={() => setShowJobModal(true)}
+                  className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Open Job Creation Modal
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Applications Tab */}
         {activeTab === 'applications' && (
-          <div className="space-y-8">
-            {/* Applications Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Application Management</h2>
-                <p className="text-gray-600">Review and manage all job applications</p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <button className="flex items-center px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </button>
-                <button className="flex items-center px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
-                </button>
-              </div>
-            </div>
-
-            {/* Application Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-              {[
-                { title: 'New Applications', value: '42', icon: FileText, color: 'blue', change: '+12%' },
-                { title: 'Under Review', value: '18', icon: Eye, color: 'yellow', change: '+5%' },
-                { title: 'Interviews Scheduled', value: '9', icon: Calendar, color: 'purple', change: '+25%' },
-                { title: 'Offers Extended', value: '4', icon: Award, color: 'green', change: '+33%' },
-                { title: 'Hired', value: '3', icon: UserCheck, color: 'emerald', change: '+50%' }
-              ].map((stat, index) => (
-                <div key={index} className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`p-2 rounded-lg bg-${stat.color}-100`}>
-                      <stat.icon className={`h-5 w-5 text-${stat.color}-600`} />
-                    </div>
-                    <span className="text-xs font-medium text-green-600">{stat.change}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                  </div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                    <DocumentTextIcon className="h-8 w-8 mr-3 text-blue-600" />
+                    Applications Management
+                  </h2>
+                  <p className="text-gray-600 mt-2">Review and manage job applications from candidates</p>
                 </div>
-              ))}
-            </div>
-
-            {/* Applications Pipeline */}
-            <div className="bg-white shadow-lg rounded-2xl border border-gray-100">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-xl font-semibold text-gray-900">Application Pipeline</h3>
               </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                  {[
-                    { stage: 'New', count: 42, applications: [
-                      { name: 'Sarah Johnson', position: 'Frontend Developer', avatar: 'SJ' },
-                      { name: 'Michael Chen', position: 'DevOps Engineer', avatar: 'MC' },
-                      { name: 'Emily Rodriguez', position: 'UX Designer', avatar: 'ER' }
-                    ], color: 'blue' },
-                    { stage: 'Reviewing', count: 18, applications: [
-                      { name: 'David Kim', position: 'Backend Developer', avatar: 'DK' },
-                      { name: 'Lisa Wang', position: 'Product Manager', avatar: 'LW' },
-                      { name: 'James Brown', position: 'Data Scientist', avatar: 'JB' }
-                    ], color: 'yellow' },
-                    { stage: 'Interview', count: 9, applications: [
-                      { name: 'Anna Taylor', position: 'Marketing Manager', avatar: 'AT' },
-                      { name: 'John Wilson', position: 'QA Engineer', avatar: 'JW' },
-                      { name: 'Maria Garcia', position: 'Customer Success', avatar: 'MG' }
-                    ], color: 'purple' },
-                    { stage: 'Final Round', count: 4, applications: [
-                      { name: 'Robert Lee', position: 'Sales Rep', avatar: 'RL' },
-                      { name: 'Jennifer Davis', position: 'Frontend Developer', avatar: 'JD' }
-                    ], color: 'orange' },
-                    { stage: 'Hired', count: 3, applications: [
-                      { name: 'Alex Thompson', position: 'Backend Developer', avatar: 'AT' },
-                      { name: 'Sophie Martinez', position: 'UX Designer', avatar: 'SM' }
-                    ], color: 'green' }
-                  ].map((stage, index) => (
-                    <div key={index} className={`bg-${stage.color}-50 p-4 rounded-xl border-2 border-${stage.color}-200`}>
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className={`text-sm font-semibold text-${stage.color}-800`}>{stage.stage}</h4>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800`}>
-                          {stage.count}
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {stage.applications.map((applicant, idx) => (
-                          <div key={idx} className={`p-3 bg-white rounded-lg border border-${stage.color}-200 hover:shadow-sm transition-shadow`}>
-                            <div className="flex items-center space-x-3">
-                              <div className={`w-8 h-8 bg-${stage.color}-100 rounded-full flex items-center justify-center`}>
-                                <span className={`text-xs font-semibold text-${stage.color}-700`}>
-                                  {applicant.avatar}
-                                </span>
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-900">{applicant.name}</p>
-                                <p className="text-xs text-gray-500">{applicant.position}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        {stage.count > stage.applications.length && (
-                          <div className="text-center">
-                            <button className={`text-xs text-${stage.color}-600 hover:text-${stage.color}-700 font-medium`}>
-                              +{stage.count - stage.applications.length} more
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              
+              <div className="text-center py-12">
+                <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Applications</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Application management features coming soon.
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Enhanced Analytics Tab */}
-        {activeTab === 'analytics' && (
-          <div className="space-y-8">
-            {/* Analytics Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
-                <p className="text-gray-600">Insights into your hiring performance and company metrics</p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <select className="px-4 py-2 text-sm border border-gray-200 rounded-lg bg-white">
-                  <option>Last 30 days</option>
-                  <option>Last 90 days</option>
-                  <option>Last year</option>
-                </select>
-                <button className="flex items-center px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Report
-                </button>
-              </div>
-            </div>
-
-            {/* Key Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                { title: 'Conversion Rate', value: '12.5%', icon: Target, trend: '+2.1%', color: 'green' },
-                { title: 'Time to Hire', value: '18 days', icon: Clock4, trend: '-3 days', color: 'blue' },
-                { title: 'Cost per Hire', value: '$2,450', icon: DollarSign, trend: '-$150', color: 'purple' },
-                { title: 'Employee Retention', value: '94%', icon: Shield, trend: '+1.2%', color: 'emerald' }
-              ].map((metric, index) => (
-                <div key={index} className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`p-3 rounded-xl bg-${metric.color}-100`}>
-                      <metric.icon className={`h-6 w-6 text-${metric.color}-600`} />
-                    </div>
-                    <span className={`text-sm font-medium ${metric.trend.startsWith('+') || metric.trend.startsWith('-$') ? 'text-green-600' : 'text-red-600'}`}>
-                      {metric.trend}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">{metric.title}</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{metric.value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Hiring Funnel */}
-              <div className="bg-white shadow-lg rounded-2xl border border-gray-100 p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-                  <PieChart className="h-6 w-6 mr-2 text-blue-600" />
-                  Hiring Funnel
-                </h3>
-                <div className="space-y-4">
-                  {[
-                    { stage: 'Applications Received', count: 847, percentage: 100, color: 'blue' },
-                    { stage: 'Qualified Candidates', count: 254, percentage: 30, color: 'indigo' },
-                    { stage: 'Phone Screenings', count: 127, percentage: 15, color: 'purple' },
-                    { stage: 'Technical Interviews', count: 64, percentage: 7.5, color: 'pink' },
-                    { stage: 'Final Interviews', count: 32, percentage: 3.8, color: 'red' },
-                    { stage: 'Job Offers', count: 16, percentage: 1.9, color: 'orange' },
-                    { stage: 'Hires', count: 12, percentage: 1.4, color: 'green' }
-                  ].map((stage, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-4 h-4 rounded bg-${stage.color}-500`}></div>
-                        <span className="text-sm text-gray-700">{stage.stage}</span>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm font-semibold text-gray-900">{stage.count}</span>
-                        <span className="text-xs text-gray-500">({stage.percentage}%)</span>
-                      </div>
-                    </div>
-                  ))}
+        {/* Company Profile Tab */}
+        {activeTab === 'company-profile' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                    <BuildingOfficeIcon className="h-8 w-8 mr-3 text-blue-600" />
+                    Company Profile
+                  </h2>
+                  <p className="text-gray-600 mt-2">Manage your company information and branding</p>
                 </div>
               </div>
-
-              {/* Application Sources */}
-              <div className="bg-white shadow-lg rounded-2xl border border-gray-100 p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-                  <MousePointer className="h-6 w-6 mr-2 text-green-600" />
-                  Application Sources
-                </h3>
-                <div className="space-y-4">
-                  {[
-                    { source: 'Company Website', count: 342, percentage: 40.4, color: 'blue' },
-                    { source: 'LinkedIn', count: 254, percentage: 30.0, color: 'indigo' },
-                    { source: 'Indeed', count: 152, percentage: 17.9, color: 'purple' },
-                    { source: 'Glassdoor', count: 68, percentage: 8.0, color: 'pink' },
-                    { source: 'Referrals', count: 31, percentage: 3.7, color: 'green' }
-                  ].map((source, index) => (
-                    <div key={index} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-700">{source.source}</span>
-                        <span className="text-sm font-semibold text-gray-900">{source.count} ({source.percentage}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`bg-${source.color}-500 h-2 rounded-full transition-all duration-300`}
-                          style={{ width: `${source.percentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              
+              <div className="text-center py-12">
+                <BuildingOfficeIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Company Profile</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Company profile management coming soon.
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Enhanced Team Tab */}
+        {/* Candidates Tab */}
+        {activeTab === 'candidates' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="text-center py-12">
+                <UserCheck className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Candidates</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Candidate management coming soon.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Team Management Tab */}
         {activeTab === 'team' && (
-          <div className="space-y-8">
-            {/* Team Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Team Management</h2>
-                <p className="text-gray-600">Manage your team members and their access levels</p>
-              </div>
-              <button className="inline-flex items-center px-6 py-3 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                <UserPlus className="h-5 w-5 mr-2" />
-                Invite Team Member
-              </button>
-            </div>
-
-            {/* Team Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {[
-                { title: 'Total Members', value: '24', icon: Users, color: 'blue' },
-                { title: 'Active Recruiters', value: '8', icon: UserCheck, color: 'green' },
-                { title: 'Pending Invites', value: '3', icon: Clock, color: 'yellow' },
-                { title: 'Admin Users', value: '2', icon: Shield, color: 'purple' }
-              ].map((stat, index) => (
-                <div key={index} className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                    </div>
-                    <div className={`p-3 rounded-xl bg-${stat.color}-100`}>
-                      <stat.icon className={`h-6 w-6 text-${stat.color}-600`} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Team Members List */}
-            <div className="bg-white shadow-lg rounded-2xl border border-gray-100">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-semibold text-gray-900">Team Members</h3>
-                  <div className="flex items-center space-x-3">
-                    <button className="flex items-center px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">
-                      <Search className="h-4 w-4 mr-2" />
-                      Search
-                    </button>
-                    <button className="flex items-center px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">
-                      <Filter className="h-4 w-4 mr-2" />
-                      Filter
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {[
-                    { name: 'John Smith', email: 'john@company.com', role: 'Admin', department: 'Engineering', status: 'active', avatar: null, lastActive: '2 hours ago' },
-                    { name: 'Sarah Johnson', email: 'sarah@company.com', role: 'Recruiter', department: 'HR', status: 'active', avatar: null, lastActive: '1 day ago' },
-                    { name: 'Michael Chen', email: 'michael@company.com', role: 'Hiring Manager', department: 'Product', status: 'active', avatar: null, lastActive: '3 hours ago' },
-                    { name: 'Emily Rodriguez', email: 'emily@company.com', role: 'Recruiter', department: 'HR', status: 'pending', avatar: null, lastActive: 'Pending invitation' }
-                  ].map((member, index) => (
-                    <div key={index} className="flex items-center justify-between p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center shadow-sm">
-                          <span className="text-white font-semibold text-sm">
-                            {member.name.split(' ').map(n => n[0]).join('')}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <h4 className="text-lg font-semibold text-gray-900">{member.name}</h4>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              member.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {member.status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">{member.email}</p>
-                          <div className="flex items-center space-x-4 mt-1">
-                            <p className="text-sm text-gray-500">{member.role} • {member.department}</p>
-                            <span className="text-gray-400">•</span>
-                            <p className="text-sm text-gray-500">Last active: {member.lastActive}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                          <Edit className="h-5 w-5" />
-                        </button>
-                        <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                          <Settings className="h-5 w-5" />
-                        </button>
-                        <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
-                          <XCircle className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="text-center py-12">
+                <Users className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Team Management</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Team management features coming soon.
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Enhanced Insights Tab */}
-        {activeTab === 'insights' && (
-          <div className="space-y-8">
-            {/* Insights Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">AI-Powered Insights</h2>
-                <p className="text-gray-600">Smart recommendations to improve your hiring process</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm text-gray-600">Live insights</span>
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="text-center py-12">
+                <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Analytics</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Analytics dashboard coming soon.
+                </p>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* Key Insights */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[
-                {
-                  type: 'success',
-                  icon: TrendingUp,
-                  title: 'High Performing Job',
-                  description: 'Your "Senior Frontend Developer" role has 40% more applications than similar positions in your industry.',
-                  action: 'View Details',
-                  color: 'green'
-                },
-                {
-                  type: 'warning',
-                  icon: AlertCircle,
-                  title: 'Long Time to Hire',
-                  description: 'Average time to hire is 25 days, 7 days longer than industry average. Consider streamlining your process.',
-                  action: 'Optimize Process',
-                  color: 'yellow'
-                },
-                {
-                  type: 'info',
-                  icon: Lightbulb,
-                  title: 'Salary Recommendation',
-                  description: 'Consider increasing DevOps Engineer salary by 8% to attract more qualified candidates from top-tier companies.',
-                  action: 'Adjust Salary',
-                  color: 'blue'
-                },
-                {
-                  type: 'opportunity',
-                  icon: Target,
-                  title: 'Skill Gap Analysis',
-                  description: 'High demand for Python developers in your area. Consider posting more backend roles to capitalize on talent pool.',
-                  action: 'Explore Roles',
-                  color: 'purple'
-                },
-                {
-                  type: 'trend',
-                  icon: Activity,
-                  title: 'Application Surge',
-                  description: 'Applications increased 35% this week. Your recent company blog post about remote work may have contributed.',
-                  action: 'Analyze Trend',
-                  color: 'emerald'
-                },
-                {
-                  type: 'retention',
-                  icon: Heart,
-                  title: 'Employee Satisfaction',
-                  description: 'Your company rating increased to 4.8/5. Great time to highlight this in job postings for better attraction.',
-                  action: 'Update Posts',
-                  color: 'pink'
-                }
-              ].map((insight, index) => (
-                <div key={index} className={`bg-white p-6 rounded-2xl shadow-lg border-l-4 border-${insight.color}-500 hover:shadow-xl transition-shadow`}>
-                  <div className="flex items-start space-x-4">
-                    <div className={`p-3 rounded-xl bg-${insight.color}-100`}>
-                      <insight.icon className={`h-6 w-6 text-${insight.color}-600`} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{insight.title}</h3>
-                      <p className="text-gray-600 mb-4">{insight.description}</p>
-                      <button className={`text-sm font-medium text-${insight.color}-600 hover:text-${insight.color}-700 flex items-center`}>
-                        {insight.action}
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Detailed Recommendations */}
-            <div className="bg-white shadow-lg rounded-2xl border border-gray-100">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-xl font-semibold text-gray-900 flex items-center">
-                  <BookOpen className="h-6 w-6 mr-2 text-purple-600" />
-                  Detailed Recommendations
-                </h3>
-              </div>
-              <div className="p-6">
-                <div className="space-y-6">
-                  {[
-                    {
-                      category: 'Job Postings',
-                      recommendations: [
-                        'Add more specific technical requirements to reduce unqualified applications',
-                        'Include company culture information to attract better fits',
-                        'Optimize job titles for better SEO performance'
-                      ]
-                    },
-                    {
-                      category: 'Application Process',
-                      recommendations: [
-                        'Reduce application form length to increase completion rate',
-                        'Add pre-screening questions to filter candidates early',
-                        'Implement automated acknowledgment emails'
-                      ]
-                    },
-                    {
-                      category: 'Interview Process',
-                      recommendations: [
-                        'Standardize interview questions across all interviewers',
-                        'Schedule interviews within 5 days of application',
-                        'Provide feedback to candidates within 48 hours'
-                      ]
-                    }
-                  ].map((category, index) => (
-                    <div key={index} className="border border-gray-200 rounded-xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">{category.category}</h4>
-                      <div className="space-y-3">
-                        {category.recommendations.map((rec, idx) => (
-                          <div key={idx} className="flex items-start space-x-3">
-                            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
-                              <span className="text-xs font-semibold text-blue-600">{idx + 1}</span>
-                            </div>
-                            <p className="text-gray-700 flex-1">{rec}</p>
-                            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                              Apply
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+              <div className="text-center py-12">
+                <Settings className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Settings</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Settings panel coming soon.
+                </p>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Job Creation Modal */}
+      {showJobModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <div className="bg-black opacity-50 absolute inset-0"></div>
+          <div className="bg-white rounded-2xl shadow-lg p-8 max-w-lg w-full relative">
+            <button
+              onClick={() => setShowJobModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+              <Briefcase className="h-6 w-6 mr-2 text-blue-600" />
+              Create New Job
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={jobFormData.title}
+                  onChange={handleJobFormChange}
+                  className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="e.g. Senior Frontend Developer"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  name="description"
+                  value={jobFormData.description}
+                  onChange={handleJobFormChange}
+                  className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  rows="4"
+                  placeholder="Describe the job responsibilities and requirements"
+                ></textarea>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Requirements</label>
+                {jobFormData.requirements.map((req, index) => (
+                  <div key={index} className="flex items-center mb-2">
+                    <input
+                      type="text"
+                      name="requirement"
+                      value={req}
+                      onChange={(e) => {
+                        const newRequirements = [...jobFormData.requirements];
+                        newRequirements[index] = e.target.value;
+                        setJobFormData({ ...jobFormData, requirements: newRequirements });
+                      }}
+                      className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      placeholder="e.g. 5+ years of experience in React"
+                    />
+                    <button
+                      onClick={() => handleRemoveRequirement(index)}
+                      className="ml-2 text-red-600 hover:text-red-700"
+                      type="button"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={handleAddRequirement}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-all duration-200"
+                  type="button"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Requirement
+                </button>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Benefits</label>
+                {jobFormData.benefits.map((ben, index) => (
+                  <div key={index} className="flex items-center mb-2">
+                    <input
+                      type="text"
+                      name="benefit"
+                      value={ben}
+                      onChange={(e) => {
+                        const newBenefits = [...jobFormData.benefits];
+                        newBenefits[index] = e.target.value;
+                        setJobFormData({ ...jobFormData, benefits: newBenefits });
+                      }}
+                      className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      placeholder="e.g. Health insurance, 401(k) matching"
+                    />
+                    <button
+                      onClick={() => handleRemoveBenefit(index)}
+                      className="ml-2 text-red-600 hover:text-red-700"
+                      type="button"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={handleAddBenefit}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-all duration-200"
+                  type="button"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Benefit
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Salary (Min)</label>
+                  <input
+                    type="number"
+                    name="salaryMin"
+                    value={jobFormData.salary.min}
+                    onChange={handleJobFormChange}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="e.g. 100000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Salary (Max)</label>
+                  <input
+                    type="number"
+                    name="salaryMax"
+                    value={jobFormData.salary.max}
+                    onChange={handleJobFormChange}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="e.g. 150000"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                <select
+                  name="currency"
+                  value={jobFormData.salary.currency}
+                  onChange={handleJobFormChange}
+                  className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Salary Period</label>
+                <select
+                  name="period"
+                  value={jobFormData.salary.period}
+                  onChange={handleJobFormChange}
+                  className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value="yearly">Yearly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="hourly">Hourly</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location (City)</label>
+                  <input
+                    type="text"
+                    name="city"
+                    value={jobFormData.location.city}
+                    onChange={handleJobFormChange}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="e.g. San Francisco"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location (State)</label>
+                  <input
+                    type="text"
+                    name="state"
+                    value={jobFormData.location.state}
+                    onChange={handleJobFormChange}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="e.g. CA"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location (Country)</label>
+                  <input
+                    type="text"
+                    name="country"
+                    value={jobFormData.location.country}
+                    onChange={handleJobFormChange}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="e.g. USA"
+                  />
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="remote"
+                    checked={jobFormData.location.remote}
+                    onChange={handleJobFormChange}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <label className="ml-2 block text-sm text-gray-700">
+                    Remote
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="hybrid"
+                    checked={jobFormData.location.hybrid}
+                    onChange={handleJobFormChange}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <label className="ml-2 block text-sm text-gray-700">
+                    Hybrid
+                  </label>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Job Type</label>
+                  <select
+                    name="type"
+                    value={jobFormData.type}
+                    onChange={handleJobFormChange}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="Full-time">Full-time</option>
+                    <option value="Part-time">Part-time</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Internship">Internship</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Experience Level</label>
+                  <select
+                    name="experience"
+                    value={jobFormData.experience}
+                    onChange={handleJobFormChange}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="Entry-level">Entry-level</option>
+                    <option value="Mid-level">Mid-level</option>
+                    <option value="Senior-level">Senior-level</option>
+                    <option value="Lead">Lead</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    name="category"
+                    value={jobFormData.category}
+                    onChange={handleJobFormChange}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="Technology">Technology</option>
+                    <option value="Design">Design</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Customer Success">Customer Success</option>
+                    <option value="Data Science">Data Science</option>
+                    <option value="Product">Product</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="HR">HR</option>
+                    <option value="Finance">Finance</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Skills</label>
+                  <input
+                    type="text"
+                    name="skills"
+                    value={jobFormData.skills.join(', ')}
+                    onChange={(e) => setJobFormData({ ...jobFormData, skills: e.target.value.split(', ') })}
+                    className="block w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="e.g. React, Node.js, TypeScript"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="urgent"
+                    checked={jobFormData.urgent}
+                    onChange={handleJobFormChange}
+                    className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-2 focus:ring-red-500"
+                  />
+                  <label className="ml-2 block text-sm text-gray-700">
+                    Urgent
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="featured"
+                    checked={jobFormData.featured}
+                    onChange={handleJobFormChange}
+                    className="h-4 w-4 text-yellow-600 border-gray-300 rounded focus:ring-2 focus:ring-yellow-500"
+                  />
+                  <label className="ml-2 block text-sm text-gray-700">
+                    Featured
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end space-x-4 mt-6">
+                <button
+                  onClick={() => setShowJobModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg shadow-sm hover:bg-gray-200 transition-all duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateJob}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-all duration-200 flex items-center"
+                  disabled={creatingJob}
+                >
+                  {creatingJob ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8H4zm16 0a8 8 0 01-8 8v-8h8z"
+                        ></path>
+                      </svg>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-5 w-5 mr-2" />
+                      Create Job
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Action Button */}
+      {activeTab !== 'create-job' && (
+        <button
+          onClick={() => handleTabChange('create-job')}
+          className="fixed bottom-8 right-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-2xl hover:shadow-3xl transform hover:scale-110 transition-all duration-300 z-50 group"
+          title="Create New Job"
+        >
+          <Plus className="h-6 w-6 group-hover:rotate-90 transition-transform duration-300" />
+        </button>
+      )}
     </div>
   );
 };
