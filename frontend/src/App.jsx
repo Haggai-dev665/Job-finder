@@ -16,6 +16,10 @@ import Applications from './pages/Applications';
 import Companies from './pages/Companies';
 import PostJob from './pages/PostJob';
 import Settings from './pages/Settings';
+import Messages from './pages/Messages';
+import Analytics from './pages/Analytics';
+import Learning from './pages/Learning';
+import JobAlerts from './pages/JobAlerts';
 import Footer from './components/Footer';
 import Dashboard from './pages/Dashboard';
 import CompanyDashboard from './pages/CompanyDashboard';
@@ -67,6 +71,43 @@ function Main() {
         } 
       />
       
+      {/* Dashboard-related routes with DashboardLayout */}
+      <Route 
+        path="/messages" 
+        element={
+          <DashboardLayout>
+            <Messages />
+          </DashboardLayout>
+        } 
+      />
+      
+      <Route 
+        path="/analytics" 
+        element={
+          <DashboardLayout>
+            <Analytics />
+          </DashboardLayout>
+        } 
+      />
+      
+      <Route 
+        path="/learning" 
+        element={
+          <DashboardLayout>
+            <Learning />
+          </DashboardLayout>
+        } 
+      />
+      
+      <Route 
+        path="/job-alerts" 
+        element={
+          <DashboardLayout>
+            <JobAlerts />
+          </DashboardLayout>
+        } 
+      />
+      
       {/* Company Dashboard route with separate layout */}
       <Route 
         path="/company-dashboard" 
@@ -97,6 +138,10 @@ function Main() {
                 <Route path="/applications" element={<Applications />} />
                 <Route path="/post-job" element={<PostJob />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/messages" element={<Messages />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/learning" element={<Learning />} />
+                <Route path="/job-alerts" element={<JobAlerts />} />
                 {/* Add more routes as needed */}
               </Routes>
             </main>
